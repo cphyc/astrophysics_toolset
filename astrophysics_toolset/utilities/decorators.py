@@ -4,6 +4,8 @@ from functools import wraps
 from typing import Callable
 import os
 
+from .exceptions import AstroToolsetNotSpatialError
+
 class read_files():
     """Decorator for functions that take a file as input.
     
@@ -31,3 +33,20 @@ class read_files():
             return fun(*args, **kwargs)
 
         return wrapped
+
+
+def spatial(fun):
+    """Asserts that the first argument passed to the function is of spatial type,
+    i.e. its last dimension has three components."""
+
+    @wraps(fun)
+    def wrapped(spatial_array, *args, **kwargs):
+        try:
+            assert isinstance(spatial_array, np.ndarray)
+            assert spatial_array.ndim >= 2
+            assert spatial_array.shape[-1] == 3
+        except AssertionError:
+            raise AstroToolsetNotSpatialError(spatial_array)
+        return fun(spatial_array, *args, **kwargs)
+
+    return wraps
