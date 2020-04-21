@@ -1,10 +1,12 @@
-"""Useful decorators"""
+"""Useful decorators."""
 
 from functools import wraps
 from typing import Callable
 import os
+import numpy as np
 
 from .exceptions import AstroToolsetNotSpatialError
+
 
 class read_files():
     """Decorator for functions that take a file as input.
@@ -37,7 +39,8 @@ class read_files():
 
 def spatial(fun):
     """Asserts that the first argument passed to the function is of spatial type,
-    i.e. its last dimension has three components."""
+    i.e. its last dimension has three components.
+    """
 
     @wraps(fun)
     def wrapped(spatial_array, *args, **kwargs):
@@ -49,4 +52,4 @@ def spatial(fun):
             raise AstroToolsetNotSpatialError(spatial_array)
         return fun(spatial_array, *args, **kwargs)
 
-    return wraps
+    return wrapped

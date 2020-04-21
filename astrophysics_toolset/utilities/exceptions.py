@@ -1,4 +1,4 @@
-"""Excception classes"""
+"""Excception classes."""
 
 class AstroToolsetNotSpatialError(Exception):
     def __init__(self, array):

@@ -2,7 +2,10 @@
 import numpy as np
 from typing import Optional
 from .types import FloatArrayType
+from .decorators import spatial
 
+
+@spatial
 def wrap_coordinates(x : FloatArrayType, w : float = 1) -> FloatArrayType:
     """Wrap the position, taking into account periodicity.
     
@@ -22,6 +25,7 @@ def wrap_coordinates(x : FloatArrayType, w : float = 1) -> FloatArrayType:
     return x_wrapped
 
 
+@spatial
 def distance_to_center(x : FloatArrayType, w : float = 1) -> FloatArrayType:
     """Compute the distance to the barycenter, taking into account periodicity.
     

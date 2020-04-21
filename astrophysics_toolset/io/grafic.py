@@ -1,4 +1,4 @@
-"""Support Grafic I/O"""
+"""Support Grafic I/O."""
 
 import os
 from scipy.io import FortranFile as FF
