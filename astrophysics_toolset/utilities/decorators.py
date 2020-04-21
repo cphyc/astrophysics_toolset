@@ -28,6 +28,6 @@ class read_files():
                 if not os.path.exists(args[i]):
                     raise FileNotFoundError(args[i])
             
-            fun(*args, **kwargs)
+            return fun(*args, **kwargs)
 
         return wrapped

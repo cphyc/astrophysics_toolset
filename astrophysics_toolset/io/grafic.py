@@ -11,7 +11,7 @@ from ..utilities.types import PathType
 from .common import IOResult
 
 @read_files(1)
-def read(fname : PathType):
+def read(fname : PathType) -> IOResult:
     """Read a grafic file.
 
     Parameters
