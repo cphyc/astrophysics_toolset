@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+requirements = ['scipy>=1.4.1']
 
 setup_requirements = ['pytest-runner', ]
 
@@ -20,7 +20,7 @@ setup(
     author="Corentin Cadiou",
     author_email='c.cadiou@ucl.ac.uk',
     python_requires='>=3.5',
-    classifiers=[
+    classifiers=[scip
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
