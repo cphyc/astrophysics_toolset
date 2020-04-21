@@ -26,3 +26,9 @@ def test_distance_to_center():
     dx = distance_to_center(x, 0.5)
     assert np.all(dx >= -0.25)
     assert np.all(dx <= 0.25)
+
+    x = np.random.normal(loc=0.5, scale=0.001, size=(10_000, 3))
+    dx_ref = x - x.mean(axis=0)
+    dx = distance_to_center(x)
+
+    np.testing.assert_allclose(dx, dx_ref, atol=1e-7)
