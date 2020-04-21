@@ -20,7 +20,7 @@ setup(
     author="Corentin Cadiou",
     author_email='c.cadiou@ucl.ac.uk',
     python_requires='>=3.5',
-    classifiers=[scip
+    classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
