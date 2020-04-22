@@ -30,13 +30,14 @@ def cic_projection(pos : FloatArrayType, N : int) -> FloatArrayType:
     posN = pos * N
     dens = np.zeros((N, N, N))
     for ipart in range(len(pos)):
-        i = int(posN[ipart, 0]+0.5)
-        j = int(posN[ipart, 1]+0.5)
-        k = int(posN[ipart, 2]+0.5)
+        x, y, z = posN[ipart, 0], posN[ipart, 1], posN[ipart, 2]
+        i = int(np.floor(x-0.5))
+        j = int(np.floor(y-0.5))
+        k = int(np.floor(z-0.5))
 
-        vi0 = abs(i - posN[ipart, 0])
-        vj0 = abs(j - posN[ipart, 1])
-        vk0 = abs(k - posN[ipart, 2])
+        vi0 = min(i+1, x+0.5) - max(i, x-0.5)
+        vj0 = min(j+1, y+0.5) - max(j, y-0.5)
+        vk0 = min(k+1, z+0.5) - max(k, z-0.5)
 
         vi1 = 1 - vi0
         vj1 = 1 - vj0
@@ -75,9 +76,10 @@ def nearest_projection(pos : FloatArrayType, N : int) -> FloatArrayType:
     posN = pos * N
     dens = np.zeros((N, N, N))
     for ipart in range(len(pos)):
-        i = int(posN[ipart, 0]+0.5)
-        j = int(posN[ipart, 1]+0.5)
-        k = int(posN[ipart, 2]+0.5)
+        x, y, z = posN[ipart, 0], posN[ipart, 1], posN[ipart, 2]
+        i = int(np.floor(x-0.5))
+        j = int(np.floor(y-0.5))
+        k = int(np.floor(z-0.5))
 
         dens[i%N, j%N, k%N] += 1
 
