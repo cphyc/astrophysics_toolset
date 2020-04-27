@@ -26,6 +26,20 @@ def cic_projection(pos : FloatArrayType, N : int) -> FloatArrayType:
     Notes
     -----
     The scheme conserves the volume, so that dens.sum() == Npoint.
+    The density array follows the C convention, i.e. it is ordered as z, y, x
+
+    Example
+    -------
+        X = np.array([ 
+            [0.42, 0.125, 0.125], 
+            [0.51, 0.125, 0.125]])
+        dens = cic_projection(X, 4)
+
+        # Varying dimension
+        #    z
+        #    |  y
+        #    |  |  x
+        dens[0, 0, :] == [0, 1.28, 0.72, 0]
     """
     posN = pos * N
     dens = np.zeros((N, N, N))
@@ -43,11 +57,11 @@ def cic_projection(pos : FloatArrayType, N : int) -> FloatArrayType:
         vj1 = 1 - vj0
         vk1 = 1 - vk0
 
-        for ii, vi in zip((i, i+1), (vi0, vi1)):
+        for kk, vk in zip((k, k+1), (vk0, vk1)):
             for jj, vj in zip((j, j+1), (vj0, vj1)):
-                for kk, vk in zip((k, k+1), (vk0, vk1)):
+                for ii, vi in zip((i, i+1), (vi0, vi1)):
                     v = vi * vj * vk
-                    dens[ii%N, jj%N, kk%N] += v
+                    dens[kk%N, jj%N, ii%N] += v
 
     return dens
 
@@ -81,6 +95,6 @@ def nearest_projection(pos : FloatArrayType, N : int) -> FloatArrayType:
         j = int(np.floor(y-0.5))
         k = int(np.floor(z-0.5))
 
-        dens[i%N, j%N, k%N] += 1
+        dens[k%N, j%N, i%N] += 1
 
     return dens

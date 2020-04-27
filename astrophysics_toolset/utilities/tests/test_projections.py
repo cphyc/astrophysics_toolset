@@ -28,5 +28,5 @@ def test_cic():
     X = np.random.rand(10, 3)
     dens = cic_projection(X, 4)
     np.testing.assert_allclose(
-        [dens.ptp(), dens.std(), dens.min(), dens.max()],
-        [0.800747538955831, 0.18253974078654206, 0.0, 0.800747538955831])
+        [dens.ptp(), dens.std(), dens.min(), dens.max(), dens[0, 3, 1], dens[1, 2, 0]],
+        [0.800747538955831, 0.18253974078654206, 0.0, 0.800747538955831, 0.0, 0.3539705205842787])
