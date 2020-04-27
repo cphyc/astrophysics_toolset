@@ -7,12 +7,14 @@ meta:
 seq:
   - id: header
     type: header
+  - id: data
+    type: data
 types:
   header:
     seq:
       - contents: [16, 0, 0, 0]
         size: 4
-      - id: magic
+      - # Magic
         contents: ['N', 'D', 'S', 'K', 'E', 'L', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
       - contents: [16, 0, 0, 0, 0, 0, 0, 0]
         size: 8
@@ -75,10 +77,12 @@ types:
         type: u4
       - # Dummy
         type: u4
+  data:
+    seq:
       - id: seg_pos
         type: f4
         repeat: expr
-        repeat-expr: 2*ndims*nsegs
+        repeat-expr: 2*_root.header.ndims*_root.header.nsegs
       - # Dummy
         type: u4
       - # Dummy
@@ -86,7 +90,7 @@ types:
       - id: nodes_pos
         type: f4
         repeat: expr
-        repeat-expr: ndims*nnodes
+        repeat-expr: _root.header.ndims*_root.header.nnodes
       - # Dummy
         type: u4
       - # Dummy
@@ -94,7 +98,7 @@ types:
       - id: segdata
         type: f8
         repeat: expr
-        repeat-expr: nsegs*nsegdata
+        repeat-expr: _root.header.nsegs*_root.header.nsegdata
       - # Dummy
         type: u4
       - # Dummy
@@ -102,7 +106,7 @@ types:
       - id: nodesdata
         type: f8
         repeat: expr
-        repeat-expr: nnodes*nnodedata
+        repeat-expr: _root.header.nnodes*_root.header.nnodedata
       - # Dummy
         type: u4
       - # Dummy
@@ -110,7 +114,7 @@ types:
       - id: nodesdata_int
         type: node_struct
         repeat: expr
-        repeat-expr: nnodes
+        repeat-expr: _root.header.nnodes
       - # Dummy
         type: u4
       - # Dummy
@@ -118,7 +122,7 @@ types:
       - id: segdata_int
         type: seg_struct
         repeat: expr
-        repeat-expr: nsegs
+        repeat-expr: _root.header.nsegs
       - # Dummy
         type: u4
   node_struct:

@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['scipy>=1.4.1', 'numpy>=1.0']
+requirements = ['scipy>=1.4.1', 'numpy>=1.0', 'kaitaistruct']
 
 setup_requirements = ['pytest-runner', ]
 
