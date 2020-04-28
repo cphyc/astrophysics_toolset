@@ -1,5 +1,5 @@
 meta:
-  id: disperse
+  id: disperse_reader
   file-extension: NDskl
   endian: le
   license: CC0-1.0
