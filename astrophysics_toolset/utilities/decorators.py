@@ -8,7 +8,7 @@ import numpy as np
 from .exceptions import AstroToolsetNotSpatialError
 
 
-class read_files():
+class read_files:
     """Decorator for functions that take a file as input.
     
     Parameters:
@@ -20,18 +20,19 @@ class read_files():
     -----
     The wrapped function is expected to have its input files as first arguments.
     """
+
     N_files = 0
 
-    def __init__(self, N : int):
+    def __init__(self, N: int):
         self.N_files = N
 
-    def __call__(self, fun : Callable) -> Callable:
+    def __call__(self, fun: Callable) -> Callable:
         @wraps(fun)
         def wrapped(*args, **kwargs):
             for i in range(self.N_files):
                 if not os.path.exists(args[i]):
                     raise FileNotFoundError(args[i])
-            
+
             return fun(*args, **kwargs)
 
         return wrapped

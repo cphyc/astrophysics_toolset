@@ -6,7 +6,7 @@ from .decorators import spatial
 
 
 @spatial
-def wrap_coordinates(x : FloatArrayType, w : float = 1) -> FloatArrayType:
+def wrap_coordinates(x: FloatArrayType, w: float = 1) -> FloatArrayType:
     """Wrap the position, taking into account periodicity.
     
     Parameters:
@@ -26,7 +26,7 @@ def wrap_coordinates(x : FloatArrayType, w : float = 1) -> FloatArrayType:
 
 
 @spatial
-def distance_to_center(x : FloatArrayType, w : float = 1) -> FloatArrayType:
+def distance_to_center(x: FloatArrayType, w: float = 1) -> FloatArrayType:
     """Compute the distance to the barycenter, taking into account periodicity.
     
     Parameters:
@@ -46,12 +46,12 @@ def distance_to_center(x : FloatArrayType, w : float = 1) -> FloatArrayType:
     # Compute distances to first element
     x0 = x[..., 0, :]
     dx = x[..., 1:, :] - x0[..., None, :]
-    dx[dx>(+w/2)] -= w
-    dx[dx<(-w/2)] += w
+    dx[dx > (+w / 2)] -= w
+    dx[dx < (-w / 2)] += w
 
     # Now rewrite w.r.t. center
     xcenter = dx.mean(axis=-2) + x0
     dx = x - xcenter[..., None, :]
-    dx[dx>(+w/2)] -= w
-    dx[dx<(-w/2)] += w
+    dx[dx > (+w / 2)] -= w
+    dx[dx < (-w / 2)] += w
     return dx

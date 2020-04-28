@@ -2,6 +2,7 @@ from ..periodicity import wrap_coordinates, distance_to_center
 
 import numpy as np
 
+
 def test_wrap_coordinates():
     np.random.seed(16091992)
     x = np.random.rand(1000, 3) * 3 - 1

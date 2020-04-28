@@ -11,6 +11,7 @@ def test_projection_conservation():
         dens = proj(X, 16)
         np.testing.assert_allclose(dens.sum(), len(X))
 
+
 def test_cic():
     # Corner case
     X = np.array([[0, 0, 0]])
@@ -19,7 +20,7 @@ def test_cic():
     for i in (-1, 0):
         for j in (-1, 0):
             for k in (-1, 0):
-                dens_real[i, j, k] = 1/8
+                dens_real[i, j, k] = 1 / 8
 
     np.testing.assert_allclose(dens, dens_real)
 
@@ -27,6 +28,22 @@ def test_cic():
     np.random.seed(16091992)
     X = np.random.rand(10, 3)
     dens = cic_projection(X, 4)
+    true_ans = [
+        dens.ptp(),
+        dens.std(),
+        dens.min(),
+        dens.max(),
+        dens[0, 3, 1],
+        dens[1, 2, 0],
+    ]
     np.testing.assert_allclose(
-        [dens.ptp(), dens.std(), dens.min(), dens.max(), dens[0, 3, 1], dens[1, 2, 0]],
-        [0.800747538955831, 0.18253974078654206, 0.0, 0.800747538955831, 0.0, 0.3539705205842787])
+        true_ans,
+        [
+            0.800747538955831,
+            0.18253974078654206,
+            0.0,
+            0.800747538955831,
+            0.0,
+            0.3539705205842787,
+        ],
+    )

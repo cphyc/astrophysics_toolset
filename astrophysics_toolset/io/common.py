@@ -2,4 +2,4 @@
 
 from collections import namedtuple
 
-IOResult = namedtuple('IOResult', ['data', 'metadata'])
+IOResult = namedtuple("IOResult", ["data", "metadata"])
