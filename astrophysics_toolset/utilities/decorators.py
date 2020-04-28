@@ -18,7 +18,7 @@ class read_files:
 
     Notes
     -----
-    The wrapped function is expected to have its input files as first arguments.
+    The wrapped function is expected to have its input files as last argument.
     """
 
     N_files = 0
@@ -29,9 +29,10 @@ class read_files:
     def __call__(self, fun: Callable) -> Callable:
         @wraps(fun)
         def wrapped(*args, **kwargs):
+            nargs = len(args)
             for i in range(self.N_files):
-                if not os.path.exists(args[i]):
-                    raise FileNotFoundError(args[i])
+                if not os.path.exists(args[nargs-i-1]):
+                    raise FileNotFoundError(args[nargs-i-1])
 
             return fun(*args, **kwargs)
 
