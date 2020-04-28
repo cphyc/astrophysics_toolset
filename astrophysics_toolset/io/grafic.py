@@ -1,9 +1,6 @@
 """Support Grafic I/O."""
 
-import os
 from scipy.io import FortranFile as FF
-import pathlib
-from typing import Union
 import numpy as np
 
 from ..utilities.decorators import read_files

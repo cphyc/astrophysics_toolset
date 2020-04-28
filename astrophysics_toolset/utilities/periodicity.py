@@ -1,6 +1,5 @@
 """Handle periodicity."""
 import numpy as np
-from typing import Optional
 from .types import FloatArrayType
 from .decorators import spatial
 
