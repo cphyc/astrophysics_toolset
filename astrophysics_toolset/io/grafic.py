@@ -18,7 +18,7 @@ def read(fname: PathType) -> IOResult:
     Parameters
     ----------
     fname : str, filename
-    
+
     """
     try:
         aexp = float(fname.split("-")[-1].replace(".dat", ""))

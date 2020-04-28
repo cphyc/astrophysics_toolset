@@ -10,7 +10,7 @@ from .exceptions import AstroToolsetNotSpatialError
 
 class read_files:
     """Decorator for functions that take a file as input.
-    
+
     Parameters:
     -----------
     N : int

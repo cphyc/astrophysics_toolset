@@ -10,14 +10,14 @@ from .decorators import spatial
 @njit
 def cic_projection(pos: FloatArrayType, N: int) -> FloatArrayType:
     """Compute a CIC projection of some position on a uniform grid.
-    
+
     Parameters
     ----------
     pos : array-like (Npoint, 3)
         The position in the [0,1] periodic domain
     N : int
         The size of the grid to project onto
-    
+
     Returns
     -------
     dens : array-like (N, N, N)
@@ -30,8 +30,8 @@ def cic_projection(pos: FloatArrayType, N: int) -> FloatArrayType:
 
     Example
     -------
-        X = np.array([ 
-            [0.42, 0.125, 0.125], 
+        X = np.array([
+            [0.42, 0.125, 0.125],
             [0.51, 0.125, 0.125]])
         dens = cic_projection(X, 4)
 
@@ -70,14 +70,14 @@ def cic_projection(pos: FloatArrayType, N: int) -> FloatArrayType:
 @njit
 def nearest_projection(pos: FloatArrayType, N: int) -> FloatArrayType:
     """Compute a nearest projection of some position on a uniform grid.
-    
+
     Parameters
     ----------
     pos : array-like (Npoint, 3)
         The position in the [0,1] periodic domain
     N : int
         The size of the grid to project onto
-    
+
     Returns
     -------
     dens : array-like (N, N, N)

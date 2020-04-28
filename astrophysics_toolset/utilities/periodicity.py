@@ -8,7 +8,7 @@ from .decorators import spatial
 @spatial
 def wrap_coordinates(x: FloatArrayType, w: float = 1) -> FloatArrayType:
     """Wrap the position, taking into account periodicity.
-    
+
     Parameters:
     -----------
     x : 3D array
@@ -28,7 +28,7 @@ def wrap_coordinates(x: FloatArrayType, w: float = 1) -> FloatArrayType:
 @spatial
 def distance_to_center(x: FloatArrayType, w: float = 1) -> FloatArrayType:
     """Compute the distance to the barycenter, taking into account periodicity.
-    
+
     Parameters:
     -----------
     x : 3D array
