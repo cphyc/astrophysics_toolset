@@ -21,7 +21,7 @@ deploy:
   distributions: sdist bdist_wheel
   user: cphyc
   password:
-    secure: PLEASE_REPLACE_ME
+    secure: HFHtsUyDPJgqhKoCT0HfkRPls0fDxr/2U+oBQpcQVoAv+1Sv8o/P3fxM5q7P6MxFt6Gm54FeZ1DDFn4kQuBpVXbctTYfq93hZXm2hTK9tnAmvScPR8jav0ZK7aQuFPHOUNbjeNZ6c1oET9dUVN5DbwNYfjYrV9oTZuo43omw09I5fX9ytXntAvAH/xacYVDEyxidp0rPXEBY1Op4SE0g1tpsqPB3wuR65zNXEdaUCXbohIaaQ5Ayr+c+S9u55cjJz0Lu0wJAK530+7CCZkvi4zHx/fElPFAN2tewoWI8+BrhMH226+muaFExTJFiqoqUCsm5MdyV+1bFy604tLj8MEIBkpjD1v7v7oqsEEGPDPrzwKDtNM89P1hF6l99wTfY+vPI2xtLWsPQIxIWIjoxIvFeT+Wn8LCtMdNwBQm96WBL0+BJd3ur1dDZja0Y4y7VhCdc809TDyv9Uc/oEloIcB/ZXet1uYIDLhaJPJNj/PJC4bi/pnuCdjGn/oFGY8sLbSTY6/lueCP6ekTSQdYmoleqz32BMOGHCpBkjG7rnIalfQ5AueR7NJpETJGO7pZAzFURFLwXB7SNVTGJNO5tQxKXhD5XCBFPrJNIhsq5K8dAYWc7Aw9OCdHWnUj7s3NbAzzzXcAxzaOE7+sVKN+6c42XSK6UX/cEIKiTxiMh/Og=
   on:
     tags: true
     repo: cphyc/astrophysics_toolset
