@@ -4,6 +4,7 @@ meta:
   endian: le
   license: CC0-1.0
   encoding: ASCII
+doc-ref: http://www2.iap.fr/users/sousbie/web/html/indexf83e.html?post/NDskl-format
 seq:
   - id: header
     type: header
@@ -131,12 +132,15 @@ types:
         type: u4
       - id: flags
         type: u4
+        doc: Non-null if on boundary
       - id: nnext
         type: u4
+        doc: Number of arcs connected
       - id: type
         type: u4
       - id: index
         type: u4
+        doc: Critical index
       - id: nsegs
         type: u4
         repeat: expr
@@ -159,11 +163,16 @@ types:
         type: u4
         repeat: expr
         repeat-expr: 2
+        doc: Index of the nodes at the extremity of the arc. Segment is oriented from nodes[0] toward nodes[1]
       - id: flags
         type: u4
+        doc: Non-null if on boundary
       - id: index
         type: u4
+        doc: Index of the segment in the Seg array
       - id: next_seg
         type: u4
+        doc: Index of the next segment in the arc, -1 if extremity
       - id: prev_seg
         type: u4
+        doc: Index of the previous segment in the arc, -1 if extremity

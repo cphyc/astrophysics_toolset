@@ -8,6 +8,10 @@ if parse_version(ks_version) < parse_version('0.7'):
     raise Exception("Incompatible Kaitai Struct Python API: 0.7 or later is required, but you have %s" % (ks_version))
 
 class Disperse(KaitaiStruct):
+    """
+    .. seealso::
+       Source - http://www2.iap.fr/users/sousbie/web/html/indexf83e.html?post/NDskl-format
+    """
     def __init__(self, _io, _parent=None, _root=None):
         self._io = _io
         self._parent = _parent
