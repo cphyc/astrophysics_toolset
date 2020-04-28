@@ -4,6 +4,7 @@ The reader is based on a description of the structure using Kaitai (https://kait
 """
 
 import pandas as pd
+import numpy as np
 
 from ..utilities.decorators import read_files
 from ..utilities.types import PathType
@@ -30,17 +31,25 @@ def read(fname: PathType) -> IOResult:
         .header : .disperse_reader.DisperseReader.header
             Header block of the NDskl file
     """
-    ds = DisperseReader(fname)
+    ds = DisperseReader.from_file(fname)
+
+    # Gather data
+    nnode, nnode_data, ndim = ds.header.nnode, ds.header.nnode_data, ds.header.ndim
+    node_pos = np.asarray(ds.data.node_pos).reshape((nnode, ndim))
+    node_data = np.asarray(ds.data.node_data).reshape((nnode, nnode_data))
+
+    nseg, nseg_data = ds.header.nseg, ds.header.nseg_data
+    seg_data = np.asarray(ds.data.seg_data).reshape((nseg, nseg_data))
 
     #  # Gather information about nodes
     _v1 = pd.DataFrame(
-        [(*ds.data.nodepos[s0.pos_index], s0.index, s0.flags, s0.type)
-         for s0 in ds.data.nodesdata_int],
-        columns='x y z index flags type'.split()).set_index('index')
+        [(*node_pos[s0.pos_index], s0.index, s0.flags, s0.type)
+         for s0 in ds.data.node_data_int],
+        columns=['x', 'y', 'z', 'index', 'flags', 'type']).set_index('index')
 
     _v2 = pd.DataFrame(
-        ds.data.nodesdata,
-        columns=[_.replace('\x00', '') for _ in ds.header.nodedata_info],
+        node_data,
+        columns=[_.replace('\x00', '') for _ in ds.header.node_data_info],
         index=_v1.index)
     # Parse what's integer as integer
     int_columns = ['parent_index', 'persistence_pair']
@@ -52,21 +61,21 @@ def read(fname: PathType) -> IOResult:
 
     #  # Gather information about segments
     _v1 = pd.DataFrame(
-        [(s0.index, s0.nodes[0], s0.nodes[1], s0.prev_seg, s0.next_seg)
-         for s0 in ds.data.segdata_int],
+        [(s0.index, s0.node_ids[0], s0.node_ids[1], s0.prev_seg, s0.next_seg)
+         for s0 in ds.data.seg_data_int],
         columns=['index', 'node_start', 'node_end', 'seg_prev', 'seg_next'])
     _v1 = _v1.set_index('index')
     _v2 = pd.DataFrame(
-        ds.data.segdata,
-        columns=[_.replace('\x00', '') for _ in ds.header.segdata_info],
+        seg_data,
+        columns=[_.replace('\x00', '') for _ in ds.header.seg_data_info],
         index=_v1.index)
     # Parse what's integer as integer
     int_columns = ['type', 'orientation']
     for c in int_columns:
         _v2[c] = _v2[c].astype(int)
     # Replace off-bound values by dummy values
-    _v1.loc[_v1['seg_prev'] > ds.header.nsegs, 'seg_prev'] = ds.header.nsegs
-    _v1.loc[_v1['seg_next'] > ds.header.nsegs, 'seg_next'] = ds.header.nsegs
+    _v1.loc[_v1['seg_prev'] > ds.header.nseg, 'seg_prev'] = ds.header.nseg
+    _v1.loc[_v1['seg_next'] > ds.header.nseg, 'seg_next'] = ds.header.nseg
 
     seg_ds = pd.concat((_v1, _v2), axis=1)
 

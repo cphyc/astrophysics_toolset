@@ -22,58 +22,58 @@ types:
       - id: comment
         type: str
         size: 80
-      - id: ndims
+      - id: ndim
         type: u4
       - id: dims
         type: u4
         repeat: expr
-        repeat-expr: ndims
+        repeat-expr: ndim
       - # Pad to length of 20
         type: u4
         repeat: expr
-        repeat-expr: 20-ndims
+        repeat-expr: 20-ndim
       - id: x0
         type: f8
         repeat: expr
-        repeat-expr: ndims
+        repeat-expr: ndim
       - # Pad to length of 20
         type: f8
         repeat: expr
-        repeat-expr: 20-ndims
+        repeat-expr: 20-ndim
       - id: delta
         type: f8
         repeat: expr
-        repeat-expr: ndims
+        repeat-expr: ndim
       - # Pad to length of 20
         type: f8
         repeat: expr
-        repeat-expr: 20-ndims
-      - id: nsegs
+        repeat-expr: 20-ndim
+      - id: nseg
         type: u4
-      - id: nnodes
+      - id: nnode
         type: u4
-      - id: nsegdata
+      - id: nseg_data
         type: u4
-      - id: nnodedata
-        type: u4
-      - # Dummy
+      - id: nnode_data
         type: u4
       - # Dummy
         type: u4
-      - id: segdata_info
+      - # Dummy
+        type: u4
+      - id: seg_data_info
         type: str
         size: 20
         repeat: expr
-        repeat-expr: nsegdata
+        repeat-expr: nseg_data
       - # Dummy
         type: u4
       - # Dummy
         type: u4
-      - id: nodedata_info
+      - id: node_data_info
         type: str
         size: 20
         repeat: expr
-        repeat-expr: nnodedata
+        repeat-expr: nnode_data
       - # Dummy
         type: u4
       - # Dummy
@@ -83,47 +83,47 @@ types:
       - id: seg_pos
         type: f4
         repeat: expr
-        repeat-expr: 2*_root.header.ndims*_root.header.nsegs
+        repeat-expr: 2*_root.header.ndim*_root.header.nseg
       - # Dummy
         type: u4
       - # Dummy
         type: u4
-      - id: nodes_pos
+      - id: node_pos
         type: f4
         repeat: expr
-        repeat-expr: _root.header.ndims*_root.header.nnodes
+        repeat-expr: _root.header.ndim*_root.header.nnode
       - # Dummy
         type: u4
       - # Dummy
         type: u4
-      - id: segdata
+      - id: seg_data
         type: f8
         repeat: expr
-        repeat-expr: _root.header.nsegs*_root.header.nsegdata
+        repeat-expr: _root.header.nseg*_root.header.nseg_data
       - # Dummy
         type: u4
       - # Dummy
         type: u4
-      - id: nodesdata
+      - id: node_data
         type: f8
         repeat: expr
-        repeat-expr: _root.header.nnodes*_root.header.nnodedata
+        repeat-expr: _root.header.nnode*_root.header.nnode_data
       - # Dummy
         type: u4
       - # Dummy
         type: u4
-      - id: nodesdata_int
+      - id: node_data_int
         type: node_struct
         repeat: expr
-        repeat-expr: _root.header.nnodes
+        repeat-expr: _root.header.nnode
       - # Dummy
         type: u4
       - # Dummy
         type: u4
-      - id: segdata_int
+      - id: seg_data_int
         type: seg_struct
         repeat: expr
-        repeat-expr: _root.header.nsegs
+        repeat-expr: _root.header.nseg
       - # Dummy
         type: u4
   node_struct:
@@ -141,7 +141,7 @@ types:
       - id: index
         type: u4
         doc: Critical index
-      - id: nsegs
+      - id: nseg
         type: u4
         repeat: expr
         repeat-expr: nnext
@@ -159,7 +159,7 @@ types:
     seq:
       - id: pos_index
         type: u4
-      - id: nodes
+      - id: node_ids
         type: u4
         repeat: expr
         repeat-expr: 2
