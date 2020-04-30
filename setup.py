@@ -11,7 +11,7 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-    'scipy>=1.4.1',
+     'scipy>=1.4.1',
      'numpy>=1.0',
      'kaitaistruct>=0.8',
      'numba>=0.40'
