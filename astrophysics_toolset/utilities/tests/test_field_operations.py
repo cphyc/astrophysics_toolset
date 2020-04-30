@@ -2,6 +2,7 @@ from ..field_operations import gaussian_filter, top_hat_filter
 
 from scipy.ndimage import gaussian_filter as scipy_gaussian_filter
 from scipy.optimize import curve_fit
+from scipy.stats import binned_statistic
 import numpy as np
 import pytest
 
@@ -9,7 +10,7 @@ import pytest
 N1 = 1000
 R1 = 50
 
-N3 = 64
+N3, N3_large = 64, 128
 R3 = 20
 
 
@@ -25,6 +26,14 @@ def x_3D():
     x_3D = np.zeros((N3, N3, N3))
     x_3D[N3//2, N3//2, N3//2] = 10
     return x_3D
+
+
+@pytest.fixture
+def x_3D_large():
+    x_3D = np.zeros((N3_large, N3_large, N3_large))
+    x_3D[N3_large//2, N3_large//2, N3_large//2] = 10
+    return x_3D
+
 
 
 def test_gaussian_filter_1(x_1D):
@@ -73,6 +82,24 @@ def test_top_hat_filter_exception(x_1D):
 
     assert "Top-Hat filtering has not been implemented for dimensions ≠ 3" \
         in str(excinfo.value)
+
+
+def test_top_hat_filter_radius(x_3D, x_3D_large):
+    for x_3D, N in zip((x_3D, x_3D_large), (N3, N3_large)):
+        # Compute profile
+        Nj = 1j*N
+        s = slice(0, N, Nj)
+        xyz = np.mgrid[s, s, s] - N/2
+        v = top_hat_filter(x_3D, N/3)
+        r = np.linalg.norm(xyz, axis=0)
+        res = binned_statistic(r.flatten(), v.flatten(), bins=np.linspace(0, N//2, 200))
+
+        # Find radius of sphere
+        deriv = np.gradient(res.statistic) / np.diff(res.bin_edges)
+        Nmin = (res.bin_edges[1:] + res.bin_edges[:-1])[np.nanargmin(deriv)] / 2
+
+        # Can't expect perfect agreement due to grid effects
+        np.testing.assert_allclose(Nmin, N/3, rtol=0.03)
 
 
 def test_top_hat_filter_volume(x_3D):
