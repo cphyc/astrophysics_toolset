@@ -1,10 +1,16 @@
 from ..periodicity import wrap_coordinates, distance_to_center
 
 import numpy as np
+import pytest
 
 
-def test_wrap_coordinates():
-    np.random.seed(16091992)
+@pytest.fixture
+def seed():
+    return 16091992
+
+
+def test_wrap_coordinates(seed):
+    np.random.seed(seed)
     x = np.random.rand(1000, 3) * 3 - 1
 
     xw = wrap_coordinates(x)
@@ -16,8 +22,8 @@ def test_wrap_coordinates():
     assert np.all(xw < 0.5)
 
 
-def test_distance_to_center():
-    np.random.seed(16091992)
+def test_distance_to_center(seed):
+    np.random.seed(seed)
     x = np.random.rand(1000, 3) * 3 - 1
 
     dx = distance_to_center(x)

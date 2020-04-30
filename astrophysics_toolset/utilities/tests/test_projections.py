@@ -1,9 +1,16 @@
 import numpy as np
+import pytest
 
 from ..projections import cic_projection, nearest_projection
 
 
-def test_projection_conservation():
+@pytest.fixture
+def seed():
+    return 16091992
+
+
+def test_projection_conservation(seed):
+    np.random.seed(seed)
     # Check that the CIC projection conserves the volume
     X = np.random.rand(1000, 3)
 
@@ -12,7 +19,8 @@ def test_projection_conservation():
         np.testing.assert_allclose(dens.sum(), len(X))
 
 
-def test_cic():
+def test_cic(seed):
+    np.random.seed(seed)
     # Corner case
     X = np.array([[0, 0, 0]])
     dens = cic_projection(X, 4)
@@ -25,7 +33,6 @@ def test_cic():
     np.testing.assert_allclose(dens, dens_real)
 
     # More complicated case -- checked manually
-    np.random.seed(16091992)
     X = np.random.rand(10, 3)
     dens = cic_projection(X, 4)
     true_ans = [
