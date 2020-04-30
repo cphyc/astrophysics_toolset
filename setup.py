@@ -10,16 +10,20 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['scipy>=1.4.1', 'numpy>=1.0', 'kaitaistruct', 'numba>=0.40']
-
+requirements = [
+    'scipy>=1.4.1',
+     'numpy>=1.0',
+     'kaitaistruct>=0.8',
+     'numba>=0.40'
+]
 setup_requirements = ['pytest-runner', ]
 
-test_requirements = ['pytest>=3', ]
+test_requirements = ['pytest==5.4.1', 'mpmath==1.1.0']
 
 setup(
     author="Corentin Cadiou",
     author_email='c.cadiou@ucl.ac.uk',
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
