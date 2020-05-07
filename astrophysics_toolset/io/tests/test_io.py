@@ -22,7 +22,7 @@ def walker_helper(keys, root):
             yield keys + [key], exp_type
 
 
-def deep_dict_compare(a, b, prefix=[]):
+def deep_dict_compare(a, b, prefix=[], print_pre=''):
     assert len(a) == len(b)
 
     key_a = set(a.keys())
@@ -32,16 +32,20 @@ def deep_dict_compare(a, b, prefix=[]):
         raise AssertionError("Found different set of keys at %s" % prefix)
 
     for key, va in a.items():
+        print(print_pre, end='')
         vb = b[key]
         if type(va) != type(vb):
             raise AssertionError('Type differ at %s[%s]' % (prefix, key))
 
         if isinstance(va, dict):
-            deep_dict_compare(va, vb, prefix + [key])
+            print('checking key «%s»' % key)
+            deep_dict_compare(va, vb, prefix + [key], print_pre+'\t')
         else:
+            print('comparing %s %s' % (prefix, key), end='...')
             if va != vb:
                 raise AssertionError(
                     "Value differ at %s[%s], %s ≠ %s" % (prefix, key, va, vb))
+            print('ok!')
 
 
 def test_structure(pdb):
@@ -92,7 +96,7 @@ def test_access(pdb):
     # This should work
     for keys, expected_type in walker_helper([], pdb.structure):
         # Bake access path as "a/b/c"
-        path = keys
+        path = '/'.join(keys)
         res = pdb[path]
 
         if expected_type in (int, float):
