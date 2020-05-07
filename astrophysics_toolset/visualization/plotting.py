@@ -20,6 +20,7 @@ class AnchoredScaleBar(AnchoredOffsetbox):
         prop=None,
         barcolor="black",
         barwidth=None,
+        label_kwa={},
         **kwargs
     ):
         """
@@ -49,10 +50,10 @@ class AnchoredScaleBar(AnchoredOffsetbox):
 
         vpacker_kwa = {"align": "center", "pad": 0, "sep": sep}
         if sizex and labelx:
-            self.xlabel = TextArea(labelx, minimumdescent=False)
+            self.xlabel = TextArea(labelx, minimumdescent=False, **label_kwa)
             bars = VPacker(children=[bars, self.xlabel], **vpacker_kwa)
         if sizey and labely:
-            self.ylabel = TextArea(labely)
+            self.ylabel = TextArea(labely, **label_kwa)
             bars = HPacker(children=[self.ylabel, bars], **vpacker_kwa)
 
         AnchoredOffsetbox.__init__(
