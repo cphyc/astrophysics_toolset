@@ -73,6 +73,13 @@ class PDBReader:
         return self._structure
 
     def get(self, path):
+        # Check the patch does exist
+        keys = path.split('/')
+        node = self.structure
+        for k in keys:
+            node = node.get(k, None)
+            if node is None:
+                raise KeyError('Provided path does not exist on file: %s' % path)
         cmd = 'f.%s' % path.replace('/', '.')
         return self.yo(f'={cmd}')
 
