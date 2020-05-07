@@ -1,9 +1,10 @@
 import re
 from ..utilities.logging import logger
+from ..utilities.decorators import read_files
 
-STRUCT_NAME_RE = re.compile('^struct (\w+) \{$')
-ARRAY_RE = re.compile('^\s*(\w+) (\w+)\((\d+)\);$')
-VAR_RE = re.compile('^\s*(\w+) (\w+);$')
+STRUCT_NAME_RE = re.compile(r'^struct (\w+) \{$')
+ARRAY_RE = re.compile(r'^\s*(\w+) (\w+)\((\d+)\);$')
+VAR_RE = re.compile(r'^\s*(\w+) (\w+);$')
 
 
 class PDBReader:
@@ -13,14 +14,17 @@ class PDBReader:
         'pointer': 'yorick_pointer'
     }
 
+    @read_files(1)
     def __init__(self, fname):
         try:
             import pyorick
         except ModuleNotFoundError:
-            logger.error('Reading PDB files requires the pyorick package. Install it via `pip install pyorick` along with Yorick.')
+            logger.error('Reading PDB files requires the pyorick package. '
+                         'Install it via `pip install pyorick` along with Yorick.')
 
         if not self.check(fname):
-            raise Exception('Unrecognized file format for file %s, could not read as PDB file.' % fname)
+            raise Exception('Unrecognized file format for file %s, '
+                            'could not read as PDB file.' % fname)
 
         self._known_types = self._known_types.copy()
         self.yo = pyorick.Yorick()
