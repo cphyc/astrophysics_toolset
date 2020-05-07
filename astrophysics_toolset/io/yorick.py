@@ -1,5 +1,5 @@
 import re
-import pyorick
+from ..utilities.logging import logger
 
 STRUCT_NAME_RE = re.compile('^struct (\w+) \{$')
 ARRAY_RE = re.compile('^\s*(\w+) (\w+)\((\d+)\);$')
@@ -14,6 +14,11 @@ class PDBReader:
     }
 
     def __init__(self, fname):
+        try:
+            import pyorick
+        except ModuleNotFoundError:
+            logger.error('Reading PDB files requires the pyorick package. Install it via `pip install pyorick` along with Yorick.')
+
         self._known_types = self._known_types.copy()
         self.yo = pyorick.Yorick()
         self.yo(f'f=openb("{fname}")')
@@ -24,7 +29,7 @@ class PDBReader:
             self._structure[v] = self._parse_struct(v)
 
     def _get_vars(self):
-        self.yo('ptrs=_get_vars(f)')
+        self.yo('ptrs=get_vars(f)')
 
         length = int(self.yo.e('numberof(ptrs)')) - 1
         variables = []
