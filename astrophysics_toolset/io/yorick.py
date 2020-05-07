@@ -19,6 +19,9 @@ class PDBReader:
         except ModuleNotFoundError:
             logger.error('Reading PDB files requires the pyorick package. Install it via `pip install pyorick` along with Yorick.')
 
+        if not self.check(fname):
+            raise Exception('Unrecognized file format for file %s, could not read as PDB file.' % fname)
+
         self._known_types = self._known_types.copy()
         self.yo = pyorick.Yorick()
         self.yo(f'f=openb("{fname}")')
@@ -27,6 +30,11 @@ class PDBReader:
         self._structure = {}
         for v in self._variables:
             self._structure[v] = self._parse_struct(v)
+
+    def check(self, fname):
+        # Test that the file starts with the magic string
+        with open(fname, 'br') as f:
+            return f.readline().decode() == '!<<PDB:II>>!\n'
 
     def _get_vars(self):
         self.yo('ptrs=get_vars(f)')
