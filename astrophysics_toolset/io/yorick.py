@@ -35,6 +35,8 @@ class PDBReader:
         for v in self._variables:
             self._structure[v] = self._parse_struct(v)
 
+        self._data = {}
+
     def check(self, fname):
         # Test that the file starts with the magic string
         with open(fname, 'br') as f:
