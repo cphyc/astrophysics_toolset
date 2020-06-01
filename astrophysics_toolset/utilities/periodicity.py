@@ -25,7 +25,8 @@ def wrap_coordinates(x: FloatArrayType, w: float = 1) -> FloatArrayType:
 
 
 @spatial
-def distance_to_center(x: FloatArrayType, w: float = 1) -> FloatArrayType:
+def distance_to_center(x: FloatArrayType, w: float = 1,
+                       return_center: bool = False) -> FloatArrayType:
     """Compute the distance to the barycenter, taking into account periodicity.
 
     Parameters:
@@ -33,12 +34,17 @@ def distance_to_center(x: FloatArrayType, w: float = 1) -> FloatArrayType:
     x : 3D array
         The position
     w : float, optional
-        The width of the domain (default : 1)
+        The width of the domain (default: 1)
+    return_center : bool, optional
+        Also return the position of the center (default: False)
 
     Returns
     -------
     dx : 3D array
         The distance to the center, wrapped with periodic boundaries
+    xcenter : float array
+        The center position, in the same units as x.
+        Only returned if return_center is True.
     """
     if np.any(x > w) or np.any(x < 0):
         x = wrap_coordinates(x, w)
@@ -53,4 +59,8 @@ def distance_to_center(x: FloatArrayType, w: float = 1) -> FloatArrayType:
     dx = x - xcenter[..., None, :]
     dx[dx > (+w / 2)] -= w
     dx[dx < (-w / 2)] += w
-    return dx
+
+    if return_center:
+        return dx, xcenter
+    else:
+        return dx
