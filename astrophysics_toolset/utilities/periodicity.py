@@ -50,7 +50,7 @@ def distance_to_center(x: FloatArrayType, w: float = 1,
         x = wrap_coordinates(x, w)
     # Compute distances to first element
     x0 = x[..., 0, :]
-    dx = x[..., 1:, :] - x0[..., None, :]
+    dx = x[..., :, :] - x0[..., None, :]
     dx[dx > (+w / 2)] -= w
     dx[dx < (-w / 2)] += w
 
