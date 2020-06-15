@@ -3,6 +3,10 @@
 # LICENSE: Python Software Foundation (http://docs.python.org/license.html)
 
 from matplotlib.offsetbox import AnchoredOffsetbox
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import warnings
+from matplotlib.mathtext import MathTextWarning
 
 
 class AnchoredScaleBar(AnchoredOffsetbox):
