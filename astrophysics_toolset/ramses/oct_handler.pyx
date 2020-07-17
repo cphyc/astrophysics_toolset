@@ -5,6 +5,8 @@ cimport numpy as np
 
 from libc.stdlib cimport malloc, free
 from libcpp.queue cimport queue
+from libcpp.unordered_map cimport unordered_map
+from libcpp.pair cimport pair
 from cython cimport integral
 cimport cython
 
@@ -12,8 +14,8 @@ cdef struct Oct:
     np.int64_t file_ind       # on file index
     np.int64_t domain_ind     # original domain
     np.int64_t new_domain_ind # new domain
-    np.int64_t colour         # temporary attribute
-    np.uint64_t hilbert_key  
+    np.int64_t colour         # attribute for selection
+    np.uint64_t hilbert_key
 
     Oct* parent
     Oct* children[8]
@@ -98,7 +100,8 @@ cdef class IndVisitor(Visitor):
     cdef np.int64_t[::1] domain_ind
     cdef np.int64_t[::1] new_domain_ind
     cdef np.int64_t[::1] lvl_ind
-    
+    cdef np.int64_t[:, ::1] nbor_ind
+
     cdef int ind_glob
 
     def __init__(self):
@@ -107,11 +110,19 @@ cdef class IndVisitor(Visitor):
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
+        cdef int i
+        cdef Oct* no
         if o.colour > 0:
             self.file_ind[self.ind_glob] = o.file_ind
             self.domain_ind[self.ind_glob] = o.domain_ind
             self.new_domain_ind[self.ind_glob] = o.new_domain_ind
             self.lvl_ind[self.ind_glob] = self.ilvl
+            for i in range(6):
+                no = o.neighbours[i]
+                if no != NULL:
+                    self.nbor_ind[self.ind_glob, i] = (no.file_ind << 40) + no.domain_ind
+                else:
+                    self.nbor_ind[self.ind_glob, i] = 0
 
             self.ind_glob += 1
 
@@ -445,15 +456,24 @@ cdef class Octree:
 
         # Extract indices
         cdef IndVisitor extract = IndVisitor()
-        cdef np.ndarray file_ind = np.full(Noct, -1, np.int64)
-        cdef np.ndarray domain_ind = np.full(Noct, -1, np.int64)
-        cdef np.ndarray new_domain_ind = np.full(Noct, -1, np.int64)
-        cdef np.ndarray lvl_ind = np.full(Noct, -1, np.int64)
+
+        cdef np.ndarray[np.int64_t, ndim=1] file_ind_arr = np.full(Noct, -1, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=1] domain_ind_arr = np.full(Noct, -1, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=1] new_domain_ind_arr = np.full(Noct, -1, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=1] lvl_ind_arr = np.full(Noct, -1, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=2] nbor_ind_arr = np.full((Noct, 6), -1, np.int64)
+
+        cdef np.int64_t[::1] file_ind = file_ind_arr
+        cdef np.int64_t[::1] domain_ind = domain_ind_arr
+        cdef np.int64_t[::1] new_domain_ind = new_domain_ind_arr
+        cdef np.int64_t[::1] lvl_ind = lvl_ind_arr
+        cdef np.int64_t[:, ::1] nbor_ind = nbor_ind_arr
 
         extract.file_ind = file_ind
         extract.domain_ind = domain_ind
         extract.new_domain_ind = new_domain_ind
         extract.lvl_ind = lvl_ind
+        extract.nbor_ind = nbor_ind
         sel.visit_all_octs(extract, traversal='breadth_first')
 
         # At this point we have
@@ -468,17 +488,42 @@ cdef class Octree:
         i0 = 0
         i = 0
         for ilvl in range(1, self.levelmax+1):
-            while i < Noct and extract.lvl_ind[i] == ilvl:
+            while i < Noct and lvl_ind[i] == ilvl:
                 i += 1
 
-            order = np.argsort(new_domain_ind[i0:i], kind='stable') + i0
-            file_ind[i0:i] = file_ind[order]
-            domain_ind[i0:i] = domain_ind[order]
-            new_domain_ind[i0:i] = new_domain_ind[order]
+            order = np.argsort(new_domain_ind_arr[i0:i], kind='stable') + i0
+            file_ind_arr[i0:i] = file_ind_arr[order]
+            domain_ind_arr[i0:i] = domain_ind_arr[order]
+            new_domain_ind_arr[i0:i] = new_domain_ind_arr[order]
+            nbor_ind_arr[i0:i] = nbor_ind_arr[order]
             # No need to do this for lvl ind, already sorted
             i0 = i
 
-        return file_ind, domain_ind, new_domain_ind, lvl_ind
+        # Create map from global position to local one
+        cdef unordered_map[np.uint64_t, np.uint64_t] global_to_local
+        cdef np.uint64_t key
+
+        for i in range(Noct):
+            # 40 bits should be enough
+            key = (file_ind[i] << 40) + domain_ind[i]
+            global_to_local[key] = <np.uint64_t>(i + 1)
+
+        # Modify global indices
+        cdef unordered_map[np.uint64_t, np.uint64_t].iterator it
+        for i in range(Noct):
+            for j in range(6):
+                key = nbor_ind[i, j]
+
+                it = global_to_local.find(key)
+                if it != global_to_local.end():
+                    nbor_ind[i, j] = global_to_local[key]
+                else:
+                    nbor_ind[i, j] = 0
+
+        return (file_ind_arr, domain_ind_arr,
+                new_domain_ind_arr, lvl_ind_arr,
+                nbor_ind_arr
+        )
 
     @property
     def ntot(self):
