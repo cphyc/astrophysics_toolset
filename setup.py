@@ -2,7 +2,9 @@
 
 """The setup script."""
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
+from Cython.Build import cythonize
+import numpy as np
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -12,13 +14,21 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
      'scipy>=1.4.1',
-     'numpy>=1.0',
+     'numpy>=1.10',
      'kaitaistruct>=0.8',
      'numba>=0.40'
 ]
 setup_requirements = ['pytest-runner', ]
 
 test_requirements = ['pytest==5.4.1', 'mpmath==1.1.0']
+
+extensions = [
+    Extension(
+        "**/*", ["**/*.pyx"],
+        include_dirs=[np.get_include()],
+        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
+    )
+]
 
 setup(
     author="Corentin Cadiou",
@@ -54,4 +64,5 @@ setup(
     url='https://github.com/cphyc/astrophysics_toolset',
     version='0.1.1',
     zip_safe=False,
+    ext_modules=cythonize(extensions, language_level=3, annotate=True)
 )

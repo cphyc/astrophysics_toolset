@@ -1,5 +1,5 @@
 import argparse
-
+from .oct_handler import Octree
 
 
 if __name__ == '__main__':
