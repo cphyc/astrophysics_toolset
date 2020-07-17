@@ -13,7 +13,7 @@ cdef struct Oct:
                             # added
     np.int64_t domain_ind   # index within the global set of domains
     np.int64_t new_domain_ind
-    np.uint8_t color        # temporary attribute
+    np.uint8_t colour        # temporary attribute
     np.uint64_t hilbert_key # hilbert key
     Oct* parent
     Oct* children[8]
@@ -36,7 +36,7 @@ cdef class ClearPaint(Visitor):
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
-        o.color = 0
+        o.colour = 0
 
 cdef class DomainVisitor(Visitor):
     """Select all cells in a domain + the ones directly adjacent to them."""
@@ -58,35 +58,45 @@ cdef class DomainVisitor(Visitor):
         cdef Oct* neigh
         cdef int i
 
-        if o.color == 0:
+        if o.colour == 0:
             self._nselected += 1
-        o.color = 1
+        o.colour = 1
 
         # Tag neighbour octs in given direction (if they exist)
         for i in range(2):
             neigh = o.neighbours[i + 2*self.idim]
             if neigh != NULL:
-                if neigh.color == 0:
+                if neigh.colour == 0:
                     self._nselected += 1
                     self._nneigh += 1
-                neigh.color = 1
+                neigh.colour = 1
 
-cdef class ExtractVisitor(Visitor):
-    cdef np.int64_t[::1] domain_ind
-    cdef np.int64_t[::1] file_ind
-    cdef int iloc
+cdef class CountVisitor(Visitor):
+    cdef int count
     def __init__(self):
-        self.iloc = 0
+        self.count = 0
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
-        if o.color > 0:
-            self.domain_ind[self.iloc] = o.domain_ind
-            self.file_ind[self.iloc] = o.file_ind
-            self.iloc += 1
+        if o.colour > 0:
+            self.count += 1
 
-        o.color = 0
+cdef class IndVisitor(Visitor):
+    cdef np.int64_t[::1] file_ind
+    cdef np.int64_t[::1] domain_ind
+    cdef int ind_glob
+
+    def __init__(self):
+        self.ind_glob = 0
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef void visit(self, Oct* o):
+        if o.colour > 0:
+            self.file_ind[self.ind_glob] = o.file_ind
+            self.domain_ind[self.ind_glob] = o.domain_ind
+            self.ind_glob += 1
 
 #############################################################
 # Selectors
@@ -202,9 +212,15 @@ cdef class Selector:
     cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl):
         raise NotImplementedError
 
+# Select all octs
 cdef class AlwaysSelector(Selector):
     cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl):
         return True
+
+# Select oct which have been painted
+cdef class PaintSelector(Selector):
+    cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl):
+        return o.colour > 0
 
 # Select all octs that may any key in range provided
 cdef class HilbertSelector(Selector):
@@ -251,7 +267,7 @@ cdef class Octree:
         self.root.new_domain_ind = 0
         self.root.file_ind = 0
         self.root.domain_ind = 0
-        self.root.color = 0
+        self.root.colour = 0
         self.root.parent = NULL
 
     def __init__(self, int levelmax):
@@ -283,7 +299,7 @@ cdef class Octree:
             node.domain_ind = domain_ind[i]
             node.new_domain_ind = new_domain_ind[i]
             node.hilbert_key = hilbert_key[i]
-            node.color = 0
+            node.colour = 0
 
         return self.ntot - nbefore
 
@@ -357,32 +373,8 @@ cdef class Octree:
         sel.visit_all_octs(cp)
         print('Cleared paint!')
 
-    def select_domain(self, np.uint64_t key_low, np.uint64_t key_up):
-        cdef int idim
-        self.clear_paint()
-
-        cdef Selector sel = HilbertSelector(self, key_low, key_up)
-        cdef DomainVisitor vis = DomainVisitor(idim=0)
-
-        for idim in range(3):
-            print('Visiting all octs in dim %s' % idim)
-            vis.idim = idim
-            sel.visit_all_octs(vis)
-        print('Found %s' % vis._nselected)
-        print('Found %s neighbours, among which %s are in another domain' % (vis._nneigh, vis._other))
-
-        return [], []
-
-        # cdef ExtractVisitor extract = ExtractVisitor()
-        # cdef np.ndarray[np.int64_t, ndim=1] dom_ind = np.zeros(vis.nselected, dtype=np.int64)
-        # cdef np.ndarray[np.int64_t, ndim=1] file_ind = np.zeros(vis.nselected, dtype=np.int64)
-        # extract.domain_ind = dom_ind
-        # extract.file_ind = file_ind
-
-        # self.recursively_visit_all_octs(self.root, extract)
-        # return dom_ind, file_ind
-
     def select(self, np.int64_t[:, ::1] ipos, np.int64_t[::1] ilvl):
+        '''Select all octs at positions'''
         cdef int N = len(ipos)
         cdef int i
 
@@ -394,9 +386,26 @@ cdef class Octree:
                 print('This should not happen!')
 
             # Select oct and its parents
-            while o != NULL and o.color == 0:
-                o.color = 1
+            while o != NULL and o.colour == 0:
+                o.colour = 1
                 o = o.parent
+
+    def iter_selected(self):
+        '''Yield the file and domain indices sorted by level'''
+        cdef PaintSelector sel = PaintSelector(self)
+        cdef int Noct
+
+        # Count number of selected octs
+        cdef CountVisitor counter = CountVisitor()
+        sel.visit_all_octs(counter)
+
+        Noct = sel.count
+
+        # Extract indices
+        cdef IndVisitor extract = IndVisitor()
+        extract.file_ind = np.full(Noct, -1, np.int64)
+        extract.domain_ind = np.full(Noct, -1, np.int64)
+        sel.visit_all_octs(extract, traversal='breadth_first')
 
     @property
     def ntot(self):
