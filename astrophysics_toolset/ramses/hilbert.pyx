@@ -48,32 +48,20 @@ cdef inline np.int64_t interleave_3bits_64(np.int64_t x):
     x = (x | x <<  4) & magics[1]
     x = (x | x <<  2) & magics[0]
     return x
-    
+
 @cython.boundscheck(False)
 @cython.cdivision(True)
 @cython.wraparound(False)
-cpdef np.ndarray[np.float64_t, ndim=1] hilbert3d(np.ndarray[np.int64_t, ndim=2] X, int bit_length):
-    '''Compute the order using Hilbert indexing.
-
-    Arguments
-    ---------
-    * X: (N, ndim) int ndarray
-      The positions
-    * bit_length: integer
-      The bit_length for the indexing.
-    '''
-
+cdef np.uint64_t[:] hilbert3d_int(np.int64_t[:, ::1] X, int bit_length):
     cdef int npoint, ip, i
-    cdef np.float64_t[:] order
-    cdef np.ndarray[np.float64_t, ndim=1] order_arr
+    cdef np.uint64_t[::1] order
     cdef np.uint64_t i_bit_mask, i_bit_mask_out, sdigit, hdigit, cstate, nstate
     cdef np.int64_t[:, ::1] X_view = X
 
     cdef np.uint64_t[:, :, ::1] state_diagram = state_diagram_arr
 
     npoint = len(X_view)
-    order_arr = np.zeros(npoint, dtype=np.float64)
-    order = order_arr
+    order = np.zeros(npoint, dtype=np.uint64)
 
     # Convert positions to binary
     for ip in range(npoint):
@@ -93,7 +81,18 @@ cpdef np.ndarray[np.float64_t, ndim=1] hilbert3d(np.ndarray[np.int64_t, ndim=2] 
             i_bit_mask_out |= hdigit << (3*i)
             cstate = nstate
 
-
         order[ip] = i_bit_mask_out
 
-    return order_arr
+    return order
+
+cpdef np.ndarray[np.float64_t, ndim=1] hilbert3d(np.ndarray[np.int64_t, ndim=2] X, int bit_length):
+    '''Compute the order using Hilbert indexing.
+
+    Arguments
+    ---------
+    * X: (N, ndim) int ndarray
+      The positions
+    * bit_length: integer
+      The bit_length for the indexing.
+    '''
+    return np.asarray(hilbert3d_int(X, bit_length), dtype=np.float64)
