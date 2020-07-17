@@ -19,6 +19,12 @@ cdef struct Oct:
     Oct* children[8]
     Oct* neighbours[6]
 
+cdef struct OctInfo:
+    Oct* oct
+    np.uint64_t ipos[3]
+    int ilvl
+
+
 #############################################################
 # Visitors
 #############################################################
@@ -31,7 +37,7 @@ cdef class ClearPaint(Visitor):
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
         o.color = 0
-    
+
 cdef class DomainVisitor(Visitor):
     """Select all cells in a domain + the ones directly adjacent to them."""
     cdef int _nselected, idim, _nneigh, _other
@@ -97,14 +103,14 @@ cdef class Selector:
     cdef Octree octree
     cdef int levelmax
     cdef int bit_length # number of bits per dimension in hilbert key
-    
+
     def __init__(self, Octree octree):
         self.octree = octree
         self.levelmax = self.octree.levelmax
         self.bit_length = self.levelmax + 1
 
     @cython.cdivision(True)
-    cdef void visit_all_octs(self, Visitor visitor):
+    cdef void visit_all_octs(self, Visitor visitor, str traversal = 'depth_first'):
         cdef int ilvl
         cdef Oct* root
         cdef np.uint64_t ipos[3]
@@ -118,7 +124,10 @@ cdef class Selector:
         ilvl = 1
 
         print(f'Root has file_ind={root.file_ind}')
-        self.recursively_visit_all_octs(root, ipos, ilvl, visitor, di / 2)
+        if traversal == 'depth_first':
+            self.recursively_visit_all_octs(root, ipos, ilvl, visitor, di / 2)
+        elif traversal == 'breadth_first':
+            self.breadth_first_visit_all_octs(root, ipos, ilvl, visitor)
 
     @cython.cdivision(True)
     cdef void recursively_visit_all_octs(self, Oct* o, np.uint64_t ipos[3], int ilvl, Visitor visitor, np.uint64_t di):
@@ -142,6 +151,52 @@ cdef class Selector:
                         ipos[0] -= (2*i - 1) * di
                     ipos[1] -= (2*j - 1) * di
                 ipos[2] -= (2*k - 1) * di
+
+    @cython.cdivision(True)
+    cdef void breadth_first_visit_all_octs(self, Oct* root, np.uint64_t ipos[3], int ilvl, Visitor visitor):
+        cdef queue[OctInfo*] q
+        cdef OctInfo *oi
+        cdef OctInfo *oi2
+        cdef Oct* o
+        cdef int di, i, j, k
+
+        oi = <OctInfo*> malloc(sizeof(OctInfo))
+        oi.oct = root
+        oi.ipos = ipos
+        oi.ilvl = ilvl
+
+        q.push(oi)
+
+        while not q.empty():
+            oi = q.front()
+            q.pop()
+
+            if not self.select(oi.oct, oi.ipos, oi.ilvl):
+                continue
+
+            visitor.visit(oi.oct)
+
+            di = 2**(self.levelmax-oi.ilvl)
+            # Visit its children
+            for k in range(2):
+                oi.ipos[2] += (2*k - 1) * di
+                for j in range(2):
+                    oi.ipos[1] += (2*j - 1) * di
+                    for i in range(2):
+                        o = oi.oct.children[find(i, j, k)]
+                        if o == NULL:
+                            continue
+                        oi.ipos[0] += (2*i - 1) * di
+                        oi2 = <OctInfo*> malloc(sizeof(OctInfo))
+                        oi2.oct = o
+                        oi2.ipos[0] = oi.ipos[0]
+                        oi2.ipos[1] = oi.ipos[1]
+                        oi2.ipos[2] = oi.ipos[2]
+                        q.push(oi2)
+                        oi.ipos[0] -= (2*i - 1) * di
+                    oi.ipos[1] -= (2*j - 1) * di
+                oi.ipos[2] -= (2*k - 1) * di
+            free(oi)
 
 
     cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl):
@@ -308,7 +363,7 @@ cdef class Octree:
 
         cdef Selector sel = HilbertSelector(self, key_low, key_up)
         cdef DomainVisitor vis = DomainVisitor(idim=0)
-        
+
         for idim in range(3):
             print('Visiting all octs in dim %s' % idim)
             vis.idim = idim
@@ -369,11 +424,6 @@ cdef class Octree:
             if node.children[i] != NULL:
                 self.mem_free(node.children[i])
                 free(node.children[i])
-
-    cdef void _breadth_traversal(self):
-        cdef queue[Oct*] q
-
-        q.push(self.root)
 
     def traverse_tree(self, method):
         if method == 'depth_first':
