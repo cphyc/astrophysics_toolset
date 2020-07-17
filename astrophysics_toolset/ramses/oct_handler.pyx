@@ -9,12 +9,12 @@ from cython cimport integral
 cimport cython
 
 cdef struct Oct:
-    np.int64_t file_ind     # index with respect to the order in which it was
-                            # added
-    np.int64_t domain_ind   # index within the global set of domains
-    np.int64_t new_domain_ind
-    np.uint8_t colour        # temporary attribute
-    np.uint64_t hilbert_key # hilbert key
+    np.int64_t file_ind       # on file index
+    np.int64_t domain_ind     # original domain
+    np.int64_t new_domain_ind # new domain
+    np.int64_t colour         # temporary attribute
+    np.uint64_t hilbert_key  
+
     Oct* parent
     Oct* children[8]
     Oct* neighbours[6]
@@ -96,6 +96,9 @@ cdef class CountVisitor(Visitor):
 cdef class IndVisitor(Visitor):
     cdef np.int64_t[::1] file_ind
     cdef np.int64_t[::1] domain_ind
+    cdef np.int64_t[::1] new_domain_ind
+    cdef np.int64_t[::1] lvl_ind
+    
     cdef int ind_glob
 
     def __init__(self):
@@ -107,6 +110,9 @@ cdef class IndVisitor(Visitor):
         if o.colour > 0:
             self.file_ind[self.ind_glob] = o.file_ind
             self.domain_ind[self.ind_glob] = o.domain_ind
+            self.new_domain_ind[self.ind_glob] = o.new_domain_ind
+            self.lvl_ind[self.ind_glob] = self.ilvl
+
             self.ind_glob += 1
 
 #############################################################
@@ -196,6 +202,8 @@ cdef class Selector:
             if not self.select(oi.oct, oi.ipos, oi.ilvl):
                 continue
 
+            visitor.ilvl = oi.ilvl
+            visitor.ipos = oi.ipos
             visitor.visit(oi.oct)
 
             di = 2**(self.levelmax-oi.ilvl)
@@ -439,11 +447,38 @@ cdef class Octree:
         cdef IndVisitor extract = IndVisitor()
         cdef np.ndarray file_ind = np.full(Noct, -1, np.int64)
         cdef np.ndarray domain_ind = np.full(Noct, -1, np.int64)
+        cdef np.ndarray new_domain_ind = np.full(Noct, -1, np.int64)
+        cdef np.ndarray lvl_ind = np.full(Noct, -1, np.int64)
+
         extract.file_ind = file_ind
         extract.domain_ind = domain_ind
+        extract.new_domain_ind = new_domain_ind
+        extract.lvl_ind = lvl_ind
         sel.visit_all_octs(extract, traversal='breadth_first')
 
-        return file_ind, domain_ind
+        # At this point we have
+        # - domain_ind : the old CPU domains to read
+        # - file_ind   : the position within the file
+        # - new_domain_ind : the new CPU domain
+        # - lvl_ind    : the level of the oct
+
+        # We need now to reorder the domains in each lvl
+        cdef ilvl, i, i0
+        cdef np.int64_t[::1] order
+        i0 = 0
+        i = 0
+        for ilvl in range(1, self.levelmax+1):
+            while i < Noct and extract.lvl_ind[i] == ilvl:
+                i += 1
+
+            order = np.argsort(new_domain_ind[i0:i], kind='stable') + i0
+            file_ind[i0:i] = file_ind[order]
+            domain_ind[i0:i] = domain_ind[order]
+            new_domain_ind[i0:i] = new_domain_ind[order]
+            # No need to do this for lvl ind, already sorted
+            i0 = i
+
+        return file_ind, domain_ind, new_domain_ind, lvl_ind
 
     @property
     def ntot(self):
