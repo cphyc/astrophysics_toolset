@@ -483,7 +483,7 @@ cdef class Octree:
         # - lvl_ind    : the level of the oct
 
         # We need now to reorder the domains in each lvl
-        cdef ilvl, i, i0
+        cdef int ilvl, i, i0
         cdef np.int64_t[::1] order
         i0 = 0
         i = 0
