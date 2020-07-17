@@ -29,6 +29,8 @@ cdef struct OctInfo:
 # Visitors
 #############################################################
 cdef class Visitor:
+    cdef np.int64_t ipos[3]
+    cdef int ilvl
     cdef void visit(self, Oct* o):
         pass
 
@@ -38,18 +40,32 @@ cdef class ClearPaint(Visitor):
     cdef void visit(self, Oct* o):
         o.colour = 0
 
+cdef class PrintVisitor(Visitor):
+    cdef bint print_neighbours
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef void visit(self, Oct* o):
+        cdef int i
+        cdef Oct* no
+        if o.parent != NULL:
+            print('\t' * self.ilvl, f'{o.file_ind} ← {o.parent.file_ind}', end='')
+        else:
+            print('\t' * self.ilvl, f'{o.file_ind} ← NULL', end='')
+
+        if self.print_neighbours:
+            print(' | ', end='')
+            for i in range(6):
+                no = o.neighbours[i]
+                if no != NULL:
+                    print(f'{no.file_ind: 7d}', end='  ')
+                else:
+                    print('_'*7, end='  ')
+        print()
+
+
 cdef class DomainVisitor(Visitor):
     """Select all cells in a domain + the ones directly adjacent to them."""
-    cdef int _nselected, idim, _nneigh, _other
-    def __init__(self, int idim):
-        self.idim = idim
-        self._nselected = 0
-        self._nneigh = 0
-        self._other = 0
-
-    @property
-    def nselected(self):
-        return self._nselected
+    cdef int idim
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -58,17 +74,12 @@ cdef class DomainVisitor(Visitor):
         cdef Oct* neigh
         cdef int i
 
-        if o.colour == 0:
-            self._nselected += 1
         o.colour = 1
 
         # Tag neighbour octs in given direction (if they exist)
         for i in range(2):
             neigh = o.neighbours[i + 2*self.idim]
             if neigh != NULL:
-                if neigh.colour == 0:
-                    self._nselected += 1
-                    self._nneigh += 1
                 neigh.colour = 1
 
 cdef class CountVisitor(Visitor):
@@ -133,7 +144,6 @@ cdef class Selector:
         ipos[2] = di
         ilvl = 1
 
-        print(f'Root has file_ind={root.file_ind}')
         if traversal == 'depth_first':
             self.recursively_visit_all_octs(root, ipos, ilvl, visitor, di / 2)
         elif traversal == 'breadth_first':
@@ -147,6 +157,8 @@ cdef class Selector:
 
         if self.select(o, ipos, ilvl):
             # Visit the oct
+            visitor.ilvl = ilvl
+            visitor.ipos = ipos
             visitor.visit(o)
 
             # Visit its children
@@ -202,6 +214,7 @@ cdef class Selector:
                         oi2.ipos[0] = oi.ipos[0]
                         oi2.ipos[1] = oi.ipos[1]
                         oi2.ipos[2] = oi.ipos[2]
+                        oi2.ilvl = oi.ilvl + 1
                         q.push(oi2)
                         oi.ipos[0] -= (2*i - 1) * di
                     oi.ipos[1] -= (2*j - 1) * di
@@ -216,6 +229,16 @@ cdef class Selector:
 cdef class AlwaysSelector(Selector):
     cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl):
         return True
+
+cdef class LevelSelector(Selector):
+    cdef int lvl
+    def __init__(self, Octree octree, int lvl):
+        super(LevelSelector, self).__init__(octree)
+        self.lvl = lvl
+
+    cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl):
+        return ilvl <= self.lvl
+
 
 # Select oct which have been painted
 cdef class PaintSelector(Selector):
@@ -264,10 +287,10 @@ cdef class Octree:
             self.root.children[i] = NULL
         for i in range(6):
             self.root.neighbours[i] = NULL
-        self.root.new_domain_ind = 0
-        self.root.file_ind = 0
-        self.root.domain_ind = 0
-        self.root.colour = 0
+        self.root.new_domain_ind = -1
+        self.root.file_ind = -1
+        self.root.domain_ind = -1
+        self.root.colour = -1
         self.root.parent = NULL
 
     def __init__(self, int levelmax):
@@ -291,10 +314,10 @@ cdef class Octree:
         N = ipos.shape[0]
 
         for i in range(N):
-            node = self.get(&ipos[i, 0], lvl[i], True)
+            node = self.get(&ipos[i, 0], lvl[i], create_child=True)
             if node == NULL:
                 print('THIS SHOULD NOT HAPPEN')
-                return
+                raise Exception()
             node.file_ind = file_ind[i]
             node.domain_ind = domain_ind[i]
             node.new_domain_ind = new_domain_ind[i]
@@ -303,44 +326,48 @@ cdef class Octree:
 
         return self.ntot - nbefore
 
-    cdef Oct* get_child(self, Oct* parent, const np.uint8_t ichild, const bint create_child):
-        cdef Oct* oct
+    cdef Oct* get_child(self, Oct* parent, const np.uint8_t ichild, bint create_child):
+        cdef Oct* o
 
-        oct = parent.children[ichild]
-        # print('In get_child', ichild, oct == NULL)
-
+        o = parent.children[ichild]
         # Create child if doesn't exist
-        if oct == NULL:
+        if o == NULL:
             if not create_child:
                 return NULL
 
-            oct = <Oct*> malloc(sizeof(Oct))
+            if debug: print(f'Creating child <Oct #{parent.file_ind}>.children[{ichild}]')
+            o = <Oct*> malloc(sizeof(Oct))
             self._ntot += 1
 
-            parent.children[ichild] = oct
+            parent.children[ichild] = o
             for i in range(8):
-                oct.children[i] = NULL
+                o.children[i] = NULL
             for i in range(6):
-                oct.neighbours[i] = NULL
-            oct.parent = parent
+                o.neighbours[i] = NULL
+            o.parent = parent
+            o.file_ind = -1
+            o.domain_ind = -1
+            o.new_domain_ind = -1
+            o.hilbert_key = -1
+            o.colour = -1
 
-        return oct
+        return o
 
 
-    cdef Oct* get(self, const np.int64_t* ipos, const np.int64_t lvl, const bint create_child):
+    cdef Oct* get(self, const np.int64_t* ipos, const np.int64_t lvl, bint create_child=False):
         cdef int ilvl
         cdef Oct* node = self.root
         cdef np.uint8_t ichild
 
-        # print('Getting', ipos[0], ipos[1], ipos[2])
+        if debug: print('Getting', ipos[0], ipos[1], ipos[2])
 
         for ilvl in range(lvl-1):
             # Compute index of child
-            ichild  = (ipos[0] >> (self.levelmax-ilvl-3)) & 0b100
-            ichild |= (ipos[1] >> (self.levelmax-ilvl-2)) & 0b010
-            ichild |= (ipos[2] >> (self.levelmax-ilvl-1)) & 0b001
+            ichild  = (ipos[0] >> (self.levelmax-ilvl-2)) & 0b100
+            ichild |= (ipos[1] >> (self.levelmax-ilvl-1)) & 0b010
+            ichild |= (ipos[2] >> (self.levelmax-ilvl-0)) & 0b001
 
-            # print(f'ilvl={ilvl}\tichild={ichild}\t{create_child}')
+            if debug: print('\t'*ilvl, f'ilvl={ilvl}\tichild={ichild}\t{create_child}')
 
             node = self.get_child(node, ichild, create_child)
             if node == NULL:
@@ -357,11 +384,11 @@ cdef class Octree:
         cdef Oct* neigh
 
         for i in range(N):
-            o = self.get(&ipos[i, 0], ilvl[i], False)
+            o = self.get(&ipos[i, 0], ilvl[i])
             if o == NULL:
                 print('This should not happen.')
             for j in range(6):
-                neigh = self.get(&ipos[i, 0], ilvl[i], False)
+                neigh = self.get(&neigh_pos[i, j, 0], ilvl[i])
                 if neigh == NULL:
                     continue
 
@@ -381,7 +408,7 @@ cdef class Octree:
         cdef Oct* o
 
         for i in range(N):
-            o = self.get(&ipos[i, 0], ilvl[i], False)
+            o = self.get(&ipos[i, 0], ilvl[i])
             if o == NULL:
                 print('This should not happen!')
 
@@ -390,32 +417,43 @@ cdef class Octree:
                 o.colour = 1
                 o = o.parent
 
-    def iter_selected(self):
+    def domain_info(self):
         '''Yield the file and domain indices sorted by level'''
         cdef PaintSelector sel = PaintSelector(self)
-        cdef int Noct
+        cdef int Noct, idim
+
+        # Expand boundaries in each direction
+        cdef DomainVisitor domvis = DomainVisitor()
+
+        for idim in range(3):
+            domvis.idim = idim
+            sel.visit_all_octs(domvis, traversal='breadth_first')
 
         # Count number of selected octs
         cdef CountVisitor counter = CountVisitor()
         sel.visit_all_octs(counter)
 
-        Noct = sel.count
+        Noct = counter.count
 
         # Extract indices
         cdef IndVisitor extract = IndVisitor()
-        extract.file_ind = np.full(Noct, -1, np.int64)
-        extract.domain_ind = np.full(Noct, -1, np.int64)
+        cdef np.ndarray file_ind = np.full(Noct, -1, np.int64)
+        cdef np.ndarray domain_ind = np.full(Noct, -1, np.int64)
+        extract.file_ind = file_ind
+        extract.domain_ind = domain_ind
         sel.visit_all_octs(extract, traversal='breadth_first')
+
+        return file_ind, domain_ind
 
     @property
     def ntot(self):
         return self._ntot # self.count(self.root)
 
-    cdef int count(self, Oct* oct):
+    cdef int count(self, Oct* o):
         cdef int N = 8
         for i in range(8):
-            if oct.children[i] != NULL:
-                N += self.count(oct.children[i])
+            if o.children[i] != NULL:
+                N += self.count(o.children[i])
         return N
 
     def __dealloc__(self):
@@ -434,8 +472,10 @@ cdef class Octree:
                 self.mem_free(node.children[i])
                 free(node.children[i])
 
-    def traverse_tree(self, method):
-        if method == 'depth_first':
-            raise NotImplementedError
-        elif method == 'breadth_first':
-            self._breadth_traversal()
+    def print_tree(self, int lvl_max, bint print_neighbours=False):
+        """ Print the tree"""
+        cdef LevelSelector sel = LevelSelector(self, lvl_max)
+        cdef PrintVisitor visit = PrintVisitor(self)
+        visit.print_neighbours = print_neighbours
+
+        sel.visit_all_octs(visit)
