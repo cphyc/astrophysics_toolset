@@ -520,6 +520,9 @@ cdef class Octree:
                 else:
                     nbor_ind[i, j] = 0
 
+        # TODO: ind_grid, next, prev, xc, father, nbor, son, cpu_map, flag1
+        # TODO: numbl, headl
+
         return (file_ind_arr, domain_ind_arr,
                 new_domain_ind_arr, lvl_ind_arr,
                 nbor_ind_arr
