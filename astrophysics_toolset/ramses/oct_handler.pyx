@@ -682,6 +682,7 @@ cdef class Octree:
             nbor=nbor_arr,
             headl=headl_arr,
             taill=taill_arr,
+            numbl=numbl_arr,
             son=son_arr,
             parent=parent_arr
         )
