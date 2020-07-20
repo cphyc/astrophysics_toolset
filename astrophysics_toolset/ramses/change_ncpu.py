@@ -1,6 +1,6 @@
 import argparse
-from .oct_handler import Octree
 
+from .oct_handler import Octree
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Write new initial conditions with a new number of processors.')

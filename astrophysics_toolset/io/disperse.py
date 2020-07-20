@@ -3,11 +3,11 @@
 The reader is based on a description of the structure using Kaitai (https://kaitai.io/).
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from ..utilities.decorators import read_files
-from ..utilities.types import PathType, FloatArrayType
+from ..utilities.types import FloatArrayType, PathType
 from .disperse_reader import DisperseReader
 
 

@@ -1,9 +1,9 @@
 """Projections."""
-from numba import njit
 import numpy as np
+from numba import njit
 
-from .types import FloatArrayType
 from .decorators import spatial
+from .types import FloatArrayType
 
 
 @spatial

@@ -1,11 +1,10 @@
-from ..field_operations import gaussian_filter, top_hat_filter
-
+import numpy as np
+import pytest
 from scipy.ndimage import gaussian_filter as scipy_gaussian_filter
 from scipy.optimize import curve_fit
 from scipy.stats import binned_statistic
-import numpy as np
-import pytest
 
+from ..field_operations import gaussian_filter, top_hat_filter
 
 N1 = 1000
 R1 = 50

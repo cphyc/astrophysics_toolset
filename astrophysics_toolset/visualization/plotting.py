@@ -2,11 +2,12 @@
 # Adapted from mpl_toolkits.axes_grid1
 # LICENSE: Python Software Foundation (http://docs.python.org/license.html)
 
-from matplotlib.offsetbox import AnchoredOffsetbox
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import warnings
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 from matplotlib.mathtext import MathTextWarning
+from matplotlib.offsetbox import AnchoredOffsetbox
 
 
 class AnchoredScaleBar(AnchoredOffsetbox):

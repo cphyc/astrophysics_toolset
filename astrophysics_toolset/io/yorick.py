@@ -1,6 +1,7 @@
 import re
-from ..utilities.logging import logger
+
 from ..utilities.decorators import read_files
+from ..utilities.logging import logger
 
 STRUCT_NAME_RE = re.compile(r'^struct (\w+) \{$')
 ARRAY_RE = re.compile(r'^\s*(\w+) (\w+)\((\d+)\);$')

@@ -1,5 +1,5 @@
-from numba import vectorize, float64, float32
 import numpy as np
+from numba import float32, float64, vectorize
 
 
 @vectorize([float64(float64), float32(float32)])
