@@ -21,12 +21,14 @@ cdef struct Oct:
 
     Oct* parent
     Oct* children[8]
-    Oct* neighbours[6]
+    Oct* neighbours[6]          # pointer to the *parent* oct of the neighbour
+    np.uint8_t ineighbours[6]   # index of the neighbour cell in its parent oct
 
 cdef struct OctInfo:
     Oct* oct
     np.uint64_t ipos[3]
     int ilvl
+    np.uint8_t icell
 
 
 #############################################################
@@ -43,7 +45,10 @@ cdef inline np.int64_t encode_mapping(np.int32_t file_ind, np.uint64_t domain_in
 #############################################################
 cdef class Visitor:
     cdef np.int64_t ipos[3]
-    cdef int ilvl, levelmax, bit_length
+    cdef int ilvl
+    cdef int levelmax
+    cdef int bit_length
+    cdef np.uint8_t icell
     cdef void visit(self, Oct* o):
         pass
 
@@ -59,6 +64,7 @@ cdef class PrintVisitor(Visitor):
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
         cdef int i
+        cdef np.uint8_t ineigh
         cdef Oct* no
         if o.parent != NULL:
             print('\t' * self.ilvl, f'{o.file_ind} ← {o.parent.file_ind}', end='')
@@ -69,10 +75,11 @@ cdef class PrintVisitor(Visitor):
             print(' | ', end='')
             for i in range(6):
                 no = o.neighbours[i]
+                ineigh = o.ineighbours[i]
                 if no != NULL:
-                    print(f'{no.file_ind: 7d}', end='  ')
+                    print(f'{no.file_ind: 7d}[{ineigh}]', end='  ')
                 else:
-                    print('_'*7, end='  ')
+                    print('_'*10, end='  ')
         print()
 
 
@@ -85,15 +92,19 @@ cdef class DomainVisitor(Visitor):
     cdef void visit(self, Oct* o):
         cdef Oct* parent
         cdef Oct* neigh
-        cdef int i
+        cdef int i, ii
 
         o.colour = 1
 
         # Tag neighbour octs in given direction (if they exist)
         for i in range(2):
-            neigh = o.neighbours[i + 2*self.idim]
+            ii = i + 2*self.idim
+            neigh = o.neighbours[ii]
             if neigh != NULL:
                 neigh.colour = 1
+                neigh = neigh.children[o.ineighbours[ii]]
+                if neigh != NULL:
+                    neigh.colour = 1
 
 cdef class CountVisitor(Visitor):
     cdef int count
@@ -199,20 +210,21 @@ cdef class Selector:
         visitor.bit_length = self.bit_length
 
         if traversal == 'depth_first':
-            self.recursively_visit_all_octs(root, ipos, ilvl, visitor, di / 2)
+            self.recursively_visit_all_octs(root, ipos, ilvl, visitor, di / 2, icell=0)
         elif traversal == 'breadth_first':
             self.breadth_first_visit_all_octs(root, ipos, ilvl, visitor)
 
     @cython.cdivision(True)
-    cdef void recursively_visit_all_octs(self, Oct* o, np.uint64_t ipos[3], int ilvl, Visitor visitor, np.uint64_t di):
+    cdef void recursively_visit_all_octs(self, Oct* o, np.uint64_t ipos[3], const int ilvl, Visitor visitor, const np.uint64_t di, np.uint8_t icell):
         cdef int i, j, k
         if o == NULL:
             return
 
         if self.select(o, ipos, ilvl):
             # Visit the oct
-            visitor.ilvl = ilvl
+            visitor.ilvl = <int> ilvl
             visitor.ipos = ipos
+            visitor.icell = icell
             visitor.visit(o)
 
             # Visit its children
@@ -223,7 +235,8 @@ cdef class Selector:
                     for i in range(2):
                         ipos[0] += (2*i - 1) * di
                         # print(' '*ilvl, f'ilvl={ilvl}, {ipos[0]}, {ipos[1]}, {ipos[2]} di={di}')
-                        self.recursively_visit_all_octs(o.children[find(i, j, k)], ipos, ilvl+1, visitor, di / 2)
+                        icell = find(i, j, k)
+                        self.recursively_visit_all_octs(o.children[icell], ipos, ilvl+1, visitor, di / 2, icell)
                         ipos[0] -= (2*i - 1) * di
                     ipos[1] -= (2*j - 1) * di
                 ipos[2] -= (2*k - 1) * di
@@ -234,7 +247,7 @@ cdef class Selector:
         cdef OctInfo *oi
         cdef OctInfo *oi2
         cdef Oct* o
-        cdef int di, i, j, k
+        cdef int di, i, j, k, icell
 
         oi = <OctInfo*> malloc(sizeof(OctInfo))
         oi.oct = root
@@ -252,6 +265,7 @@ cdef class Selector:
 
             visitor.ilvl = oi.ilvl
             visitor.ipos = oi.ipos
+            visitor.icell = oi.icell
             visitor.visit(oi.oct)
 
             di = 2**(self.levelmax-oi.ilvl)
@@ -261,7 +275,8 @@ cdef class Selector:
                 for j in range(2):
                     oi.ipos[1] += (2*j - 1) * di
                     for i in range(2):
-                        o = oi.oct.children[find(i, j, k)]
+                        icell = find(i, j, k)
+                        o = oi.oct.children[icell]
                         if o == NULL:
                             continue
                         oi.ipos[0] += (2*i - 1) * di
@@ -271,6 +286,7 @@ cdef class Selector:
                         oi2.ipos[1] = oi.ipos[1]
                         oi2.ipos[2] = oi.ipos[2]
                         oi2.ilvl = oi.ilvl + 1
+                        oi2.icell = icell
                         q.push(oi2)
                         oi.ipos[0] -= (2*i - 1) * di
                     oi.ipos[1] -= (2*j - 1) * di
@@ -415,9 +431,10 @@ cdef class Octree:
         return o
 
 
-    cdef Oct* get(self, const np.int64_t* ipos, const np.int64_t lvl, bint create_child=False):
+    cdef Oct* get(self, const np.int64_t* ipos, const np.int64_t lvl, bint create_child=False, np.uint8_t* ichild_ret=NULL, return_parent=False):
         cdef int ilvl
-        cdef Oct* node = self.root
+        cdef Oct* o = self.root
+        cdef Oct* parent = NULL # parent oct
         cdef np.uint8_t ichild
 
         if debug: print('Getting', ipos[0], ipos[1], ipos[2])
@@ -430,11 +447,18 @@ cdef class Octree:
 
             if debug: print('\t'*ilvl, f'ilvl={ilvl}\tichild={ichild}\t{create_child}')
 
-            node = self.get_child(node, ichild, create_child)
-            if node == NULL:
+            parent = o
+            o = self.get_child(o, ichild, create_child)
+            if o == NULL:
                 break
 
-        return node
+        # Store the index of the last child
+        if ichild_ret != NULL:
+            ichild_ret[0] = ichild
+        if return_parent:
+            return parent
+
+        return o
 
     @cython.boundscheck(False)
     @cython.cdivision(True)
@@ -443,17 +467,25 @@ cdef class Octree:
         cdef int i, j, N = ipos.shape[0]
         cdef Oct* o
         cdef Oct* neigh
+        cdef np.uint8_t ichild
 
         for i in range(N):
             o = self.get(&ipos[i, 0], ilvl[i])
             if o == NULL:
                 print('This should not happen.')
             for j in range(6):
-                neigh = self.get(&neigh_pos[i, j, 0], ilvl[i])
+                neigh = self.get(
+                    &neigh_pos[i, j, 0],
+                    ilvl[i],
+                    create_child=False,
+                    ichild_ret=&ichild,
+                    return_parent=True
+                )
                 if neigh == NULL:
                     continue
 
                 o.neighbours[j] = neigh
+                o.ineighbours[j] = ichild
 
     def clear_paint(self):
         cdef AlwaysSelector sel = AlwaysSelector(self)
