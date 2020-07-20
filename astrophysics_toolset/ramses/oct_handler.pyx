@@ -1,13 +1,15 @@
 # distutils: language = c++
-
 import numpy as np
 cimport numpy as np
 
 from libc.stdlib cimport malloc, free
 from libcpp.queue cimport queue
 from libcpp.unordered_map cimport unordered_map
+from libcpp.map cimport map
+
 from libcpp.pair cimport pair
 from cython cimport integral
+from cython.operator cimport dereference as deref
 cimport cython
 
 cdef struct Oct:
@@ -30,16 +32,6 @@ cdef struct OctInfo:
 #############################################################
 # Mapping functions
 #############################################################
-cdef np.uint64_t get_mapping(
-        unordered_map[np.uint64_t, np.uint64_t] map,
-        np.uint64_t key) nogil:
-    cdef unordered_map[np.uint64_t, np.uint64_t].iterator it
-    it = map.find(key)
-    if it != map.end():
-        return map[key]
-    else:
-        return 0
-
 cdef inline np.uint64_t encode_mapping(np.uint64_t file_ind, np.uint64_t domain_ind) nogil:
     return (<np.uint64_t>(file_ind) << 40) + <np.uint64_t>domain_ind
 
@@ -470,6 +462,8 @@ cdef class Octree:
                 o.colour = 1
                 o = o.parent
 
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
     def domain_info(self):
         '''Yield the file and domain indices sorted by level'''
         cdef PaintSelector sel = PaintSelector(self)
@@ -540,21 +534,30 @@ cdef class Octree:
 
         # Create map from global position to local one
         cdef unordered_map[np.uint64_t, np.uint64_t] global_to_local
+        # global_to_local.reserve(Noct)
         cdef np.uint64_t key
+        print('Global to loc')
         for i in range(Noct):
             # 40 bits should be enough
             key = encode_mapping(file_ind[i], domain_ind[i])
             global_to_local[key] = <np.uint64_t>(i + 1)
 
+        print('Inverting indices')
         # Global indices -> local indices
+        cdef unordered_map[np.uint64_t, np.uint64_t].iterator it, end
+        end = global_to_local.end()
         for i in range(Noct):
             for j in range(6):
-                nbor[i, j] = get_mapping(global_to_local, nbor[i, j])
+                it = global_to_local.find(nbor[i, j])
+                if it != end:
+                    nbor[i, j] = deref(it).second
             for j in range(8):
-                son[i, j] = get_mapping(global_to_local, son[i, j])
-
+                it = global_to_local.find(son[i, j])
+                if it != end:
+                    son[i, j] = deref(it).second
 
         # Create AMR structure
+        print('Creating AMR structure')
         cdef int icpu
         cdef np.ndarray[np.int32_t, ndim=2] headl_arr = np.zeros((self.new_ncpu, self.levelmax), dtype=np.int32)
         cdef np.ndarray[np.int32_t, ndim=2] taill_arr = np.zeros((self.new_ncpu, self.levelmax), dtype=np.int32)
@@ -584,7 +587,7 @@ cdef class Octree:
             file_ind=file_ind_arr,
             old_domain_ind=domain_ind_arr,
             new_domain_ind=new_domain_ind_arr,
-            lvl=lvl,
+            lvl=lvl_arr,
             nbor=nbor_arr,
             headl=headl_arr,
             taill=taill_arr,
