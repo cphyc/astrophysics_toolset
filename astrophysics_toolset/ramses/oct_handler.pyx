@@ -122,7 +122,7 @@ cdef class IndVisitor(Visitor):
     cdef np.int32_t[::1] domain_ind
     cdef np.int32_t[::1] new_domain_ind
     cdef np.int32_t[::1] lvl
-    cdef np.int64_t[:, ::1] nbor
+    cdef np.int64_t[:, :,::1] nbor
     cdef np.int64_t[:, ::1] son
     cdef np.int64_t[:, ::1] parent
 
@@ -136,6 +136,7 @@ cdef class IndVisitor(Visitor):
     cdef void visit(self, Oct* o):
         cdef int i, ishift
         cdef np.int64_t ii, jj, kk
+        cdef np.uint8_t icell
         cdef Oct* no
         if o.colour > 0:
             self.file_ind[self.ind_glob] = o.file_ind
@@ -146,9 +147,11 @@ cdef class IndVisitor(Visitor):
             # Fill neighbours
             for i in range(6):
                 no = o.neighbours[i]
+                icell = o.ineighbours[i]
                 if no != NULL:
-                    self.nbor[self.ind_glob, i] = encode_mapping(no.file_ind, no.domain_ind)
-                    if self.nbor[self.ind_glob, i] < 0:
+                    self.nbor[self.ind_glob, i, 0] = encode_mapping(no.file_ind, no.domain_ind)
+                    self.nbor[self.ind_glob, i, 1] = <np.int64_t> icell
+                    if self.nbor[self.ind_glob, i, 0] < 0:
                         raise Exception('This should not happen when encoding', no.file_ind, no.domain_ind, encode_mapping(no.file_ind, no.domain_ind))
             # Fill son
             for i in range(8):
@@ -160,14 +163,16 @@ cdef class IndVisitor(Visitor):
             no = o.parent
             if no != NULL:  # only for root
                 self.parent[self.ind_glob, 0] = encode_mapping(no.file_ind, no.domain_ind)
-                # Second item contains the location of the parent cell in its oct
-                ishift = self.bit_length - self.ilvl + 2
+                self.parent[self.ind_glob, 1] = self.icell
 
-                self.parent[self.ind_glob, 1] = find(
-                    (self.ipos[0] >> ishift) & 0b1,
-                    (self.ipos[1] >> ishift) & 0b1,
-                    (self.ipos[2] >> ishift) & 0b1
-                )
+                # Second item contains the location of the parent cell in its oct
+                # ishift = self.bit_length - self.ilvl + 2
+
+                # self.parent[self.ind_glob, 1] = find(
+                #     (self.ipos[0] >> ishift) & 0b1,
+                #     (self.ipos[1] >> ishift) & 0b1,
+                #     (self.ipos[2] >> ishift) & 0b1
+                # )
 
             self.ind_glob += 1
 
@@ -440,14 +445,14 @@ cdef class Octree:
             bint return_parent=False
         ):
         """Get an oct from the tree.
-        
+
         Parameters
         ----------
         ipos : the integer position (between 0 and 2**self.bit_length)
         lvl : the level at which to find the oct
         create_child :
             If True, create missing nodes in the tree
-        ichild_ret : 
+        ichild_ret :
             The index of the last child when going down the tree (i.e.
             the index of the deepest oct (if any) in its parent.
             If the deepest oct does not exist, this qty is computed
@@ -560,7 +565,7 @@ cdef class Octree:
         cdef np.ndarray[np.int32_t, ndim=1] new_domain_ind_arr = np.full(Noct, -1, np.int32)
         cdef np.ndarray[np.int32_t, ndim=1] lvl_arr = np.full(Noct, -1, np.int32)
         # These need to be int64 because of the mapping used
-        cdef np.ndarray[np.int64_t, ndim=2] nbor_arr = np.full((Noct, 6), 0, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=3] nbor_arr = np.full((Noct, 6, 2), 0, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] son_arr = np.full((Noct, 8), 0, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] parent_arr = np.full((Noct, 2), 0, np.int64)
 
@@ -568,7 +573,7 @@ cdef class Octree:
         cdef np.int32_t[::1] domain_ind = domain_ind_arr
         cdef np.int32_t[::1] new_domain_ind = new_domain_ind_arr
         cdef np.int32_t[::1] lvl = lvl_arr
-        cdef np.int64_t[:, ::1] nbor = nbor_arr
+        cdef np.int64_t[:, :, ::1] nbor = nbor_arr
         cdef np.int64_t[:, ::1] son = son_arr
         cdef np.int64_t[:, ::1] parent = parent_arr
 
@@ -618,7 +623,7 @@ cdef class Octree:
         for i in range(Noct):
             # 40 bits should be enough
             key = encode_mapping(file_ind[i], domain_ind[i])
-            
+
             # print('Inserting mapping[%s] = %s' % (key, i+1))
             global_to_local[key] = i + 1
 
@@ -628,11 +633,12 @@ cdef class Octree:
         end = global_to_local.end()
         for i in range(Noct):
             for j in range(6):
-                it = global_to_local.find(nbor[i, j])
+                it = global_to_local.find(nbor[i, j, 0])
                 if it != end:
-                    nbor[i, j] = deref(it).second
+                    nbor[i, j, 0] = deref(it).second
                 else:
-                    nbor[i, j] = 0
+                    nbor[i, j, 0] = 0
+                    nbor[i, j, 1] = 1
             for j in range(8):
                 it = global_to_local.find(son[i, j])
                 if it != end:
