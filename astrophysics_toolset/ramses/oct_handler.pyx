@@ -431,7 +431,29 @@ cdef class Octree:
         return o
 
 
-    cdef Oct* get(self, const np.int64_t* ipos, const np.int64_t lvl, bint create_child=False, np.uint8_t* ichild_ret=NULL, return_parent=False):
+    cdef Oct* get(
+            self,
+            const np.int64_t* ipos,
+            const np.int64_t lvl,
+            bint create_child=False,
+            np.uint8_t* ichild_ret=NULL,
+            bint return_parent=False
+        ):
+        """Get an oct from the tree.
+        
+        Parameters
+        ----------
+        ipos : the integer position (between 0 and 2**self.bit_length)
+        lvl : the level at which to find the oct
+        create_child :
+            If True, create missing nodes in the tree
+        ichild_ret : 
+            The index of the last child when going down the tree (i.e.
+            the index of the deepest oct (if any) in its parent.
+            If the deepest oct does not exist, this qty is computed
+        return_parent :
+            If True, stop the search one level higher.
+        """
         cdef int ilvl
         cdef Oct* o = self.root
         cdef Oct* parent = NULL # parent oct
