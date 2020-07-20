@@ -577,16 +577,20 @@ cdef class Octree:
                 it = global_to_local.find(nbor[i, j])
                 if it != end:
                     nbor[i, j] = deref(it).second
-                    if nbor[i, j] < 0:
-                        print('This should not happen!', i, j, nbor[i, j])
-                        return {}
+                else:
+                    nbor[i, j] = 0
             for j in range(8):
                 it = global_to_local.find(son[i, j])
                 if it != end:
                     son[i, j] = deref(it).second
+                else:
+                    son[i, j] = 0
             it = global_to_local.find(parent[i, 0])
             if it != end:
                 parent[i, 0] = deref(it).second
+            else:
+                parent[i, 0] = 0
+                parent[i, 1] = 0
 
         # Create AMR structure
         print('Creating AMR structure')
