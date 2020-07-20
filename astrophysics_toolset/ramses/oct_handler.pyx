@@ -28,6 +28,23 @@ cdef struct OctInfo:
 
 
 #############################################################
+# Mapping functions
+#############################################################
+cdef np.uint64_t get_mapping(
+        unordered_map[np.uint64_t, np.uint64_t] map,
+        np.uint64_t key) nogil:
+    cdef unordered_map[np.uint64_t, np.uint64_t].iterator it
+    it = map.find(key)
+    if it != map.end():
+        return map[key]
+    else:
+        return 0
+
+cdef inline np.uint64_t encode_mapping(np.uint64_t file_ind, np.uint64_t domain_ind) nogil:
+    return (<np.uint64_t>(file_ind) << 40) + <np.uint64_t>domain_ind
+
+
+#############################################################
 # Visitors
 #############################################################
 cdef class Visitor:
@@ -99,8 +116,8 @@ cdef class IndVisitor(Visitor):
     cdef np.int64_t[::1] file_ind
     cdef np.int64_t[::1] domain_ind
     cdef np.int64_t[::1] new_domain_ind
-    cdef np.int64_t[::1] lvl_ind
-    cdef np.int64_t[:, ::1] nbor_ind
+    cdef np.int64_t[::1] lvl
+    cdef np.int64_t[:, ::1] nbor
 
     cdef int ind_glob
 
@@ -113,16 +130,27 @@ cdef class IndVisitor(Visitor):
         cdef int i
         cdef Oct* no
         if o.colour > 0:
+            # if o.file_ind > 1000000 or o.file_ind < 0:
+            #     print('OOOOOOPS, something fishy happened')
             self.file_ind[self.ind_glob] = o.file_ind
             self.domain_ind[self.ind_glob] = o.domain_ind
             self.new_domain_ind[self.ind_glob] = o.new_domain_ind
-            self.lvl_ind[self.ind_glob] = self.ilvl
+            self.lvl[self.ind_glob] = self.ilvl
+
+            # Fill neighbours
             for i in range(6):
                 no = o.neighbours[i]
                 if no != NULL:
-                    self.nbor_ind[self.ind_glob, i] = (no.file_ind << 40) + no.domain_ind
+                    self.nbor[self.ind_glob, i] = encode_mapping(no.file_ind, no.domain_ind)
                 else:
-                    self.nbor_ind[self.ind_glob, i] = 0
+                    self.nbor[self.ind_glob, i] = 0
+            # Fill son
+            for i in range(8):
+                no = o.children[i]
+                if no != NULL:
+                    self.son[self.ind_glob, i] = encode_mapping(no.file_ind, no.domain_ind)
+                else:
+                    self.son[self.ind_glob, i] = 0
 
             self.ind_glob += 1
 
@@ -141,11 +169,15 @@ cdef class Selector:
     cdef Octree octree
     cdef int levelmax
     cdef int bit_length # number of bits per dimension in hilbert key
+    cdef int old_ncpu
+    cdef int new_ncpu
 
-    def __init__(self, Octree octree):
+    def __init__(self, Octree octree, int old_ncpu, int new_ncpu):
         self.octree = octree
         self.levelmax = self.octree.levelmax
         self.bit_length = self.levelmax + 1
+        self.old_ncpu = old_ncpu
+        self.new_ncpu = new_ncpu
 
     @cython.cdivision(True)
     cdef void visit_all_octs(self, Visitor visitor, str traversal = 'depth_first'):
@@ -462,25 +494,28 @@ cdef class Octree:
         cdef np.ndarray[np.int64_t, ndim=1] new_domain_ind_arr = np.full(Noct, -1, np.int64)
         cdef np.ndarray[np.int64_t, ndim=1] lvl_ind_arr = np.full(Noct, -1, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] nbor_ind_arr = np.full((Noct, 6), -1, np.int64)
+        cdef np.ndarray[np.int32_t, ndim=2] son_ind_arr = np.full((Noct, 8), 0, np.int64)
 
         cdef np.int64_t[::1] file_ind = file_ind_arr
         cdef np.int64_t[::1] domain_ind = domain_ind_arr
         cdef np.int64_t[::1] new_domain_ind = new_domain_ind_arr
-        cdef np.int64_t[::1] lvl_ind = lvl_ind_arr
-        cdef np.int64_t[:, ::1] nbor_ind = nbor_ind_arr
+        cdef np.int64_t[::1] lvl = lvl_ind_arr
+        cdef np.int64_t[:, ::1] nbor = nbor_ind_arr
+        cdef np.int32_t[:, ::1] son = son_ind_arr
 
         extract.file_ind = file_ind
         extract.domain_ind = domain_ind
         extract.new_domain_ind = new_domain_ind
-        extract.lvl_ind = lvl_ind
-        extract.nbor_ind = nbor_ind
+        extract.lvl = lvl
+        extract.nbor = nbor
+        extract.son = son
         sel.visit_all_octs(extract, traversal='breadth_first')
 
         # At this point we have
         # - domain_ind : the old CPU domains to read
         # - file_ind   : the position within the file
         # - new_domain_ind : the new CPU domain
-        # - lvl_ind    : the level of the oct
+        # - lvl    : the level of the oct
 
         # We need now to reorder the domains in each lvl
         cdef int ilvl, i, i0
@@ -488,7 +523,7 @@ cdef class Octree:
         i0 = 0
         i = 0
         for ilvl in range(1, self.levelmax+1):
-            while i < Noct and lvl_ind[i] == ilvl:
+            while i < Noct and lvl[i] == ilvl:
                 i += 1
 
             order = np.argsort(new_domain_ind_arr[i0:i], kind='stable') + i0
@@ -496,29 +531,49 @@ cdef class Octree:
             domain_ind_arr[i0:i] = domain_ind_arr[order]
             new_domain_ind_arr[i0:i] = new_domain_ind_arr[order]
             nbor_ind_arr[i0:i] = nbor_ind_arr[order]
+            son_ind_arr[i0:i] = son_ind_arr[order]
+
             # No need to do this for lvl ind, already sorted
             i0 = i
 
         # Create map from global position to local one
         cdef unordered_map[np.uint64_t, np.uint64_t] global_to_local
         cdef np.uint64_t key
-
         for i in range(Noct):
             # 40 bits should be enough
-            key = (file_ind[i] << 40) + domain_ind[i]
+            key = encode_mapping(file_ind[i], domain_ind[i])
             global_to_local[key] = <np.uint64_t>(i + 1)
 
-        # Modify global indices
-        cdef unordered_map[np.uint64_t, np.uint64_t].iterator it
+        # Global indices -> local indices
         for i in range(Noct):
             for j in range(6):
-                key = nbor_ind[i, j]
+                nbor[i, j] = get_mapping(global_to_local, nbor[i, j])
+            for j in range(8):
+                son[i, j] = get_mapping(global_to_local, son[i, j])
 
-                it = global_to_local.find(key)
-                if it != global_to_local.end():
-                    nbor_ind[i, j] = global_to_local[key]
-                else:
-                    nbor_ind[i, j] = 0
+
+        # Create AMR structure
+        cdef int icpu
+        cdef np.ndarray[np.int32_t, ndim=2] headl_arr = np.zeros((self.new_ncpu, self.levelmax), dtype=np.int32)
+        cdef np.ndarray[np.int32_t, ndim=2] taill_arr = np.zeros((self.new_ncpu, self.levelmax), dtype=np.int32)
+        cdef np.ndarray[np.int32_t, ndim=2] numbl_arr = np.zeros((self.new_ncpu, self.levelmax), dtype=np.int32)
+        cdef np.ndarray[np.int64_t, ndim=2] numbtot_arr = np.zeros((10, self.levelmax), dtype=np.int64)
+        cdef np.int32_t[:, ::1] headl = headl_arr
+        cdef np.int32_t[:, ::1] taill = taill_arr
+        cdef np.int32_t[:, ::1] numbl = numbl_arr
+        cdef np.int64_t[:, ::1] numbtot = numbtot_arr
+
+        ilvl = 0
+        icpu = 0
+        # Compute headl,taill, numbl, numbtot
+        for i in range(Noct):
+            ilvl = lvl[i]
+            icpu = new_domain_ind[i]
+            if headl[icpu-1, ilvl-1] == 0:
+                headl[icpu-1, ilvl-1] = i + 1
+            taill[icpu-1, ilvl-1] = i + 1
+            numbl[icpu-1, ilvl-1] += 1
+            # numbtot = ?
 
         # TODO: ind_grid, next, prev, xc, father, nbor, son, cpu_map, flag1
         # TODO: numbl, headl
