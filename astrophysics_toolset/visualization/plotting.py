@@ -119,9 +119,11 @@ def fix_glyph_errors(ax=None):
     """Fix missing glyph warnings in matplotlib"""
     # From https://stackoverflow.com/a/47850541
 
-    if mpl.rcParams['axes.unicode_minus'] is False:
-        warnings.warn('If you have issues with minus sign, set `axes.unicode_minus` to True in the rcParams.')
-    if mpl.rcParams['text.usetex']:
+    if mpl.rcParams["axes.unicode_minus"] is False:
+        warnings.warn(
+            "If you have issues with minus sign, set `axes.unicode_minus` to True in the rcParams."
+        )
+    if mpl.rcParams["text.usetex"]:
         # Everything is handled by LaTeX, so nothing to do.
         return
 
@@ -129,23 +131,28 @@ def fix_glyph_errors(ax=None):
         ax = plt.gca()
     fig = ax.get_figure()
     # Force the figure to be drawn
-    if tuple(int(_) for _ in mpl.__version__.split('.')) >= (3, 1, 0):
+    if tuple(int(_) for _ in mpl.__version__.split(".")) >= (3, 1, 0):
         import logging
-        logger = logging.getLogger('matplotlib.mathtext')
+
+        logger = logging.getLogger("matplotlib.mathtext")
         original_level = logger.getEffectiveLevel()
         logger.setLevel(logging.ERROR)
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=MathTextWarning)
+            warnings.simplefilter("ignore", category=MathTextWarning)
             fig.canvas.draw()
         logger.setLevel(original_level)
     else:
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=MathTextWarning)
+            warnings.simplefilter("ignore", category=MathTextWarning)
             fig.canvas.draw()
     # Remove '\mathdefault' from all minor tick labels
-    labels = [label.get_text().replace('\mathdefault', '')
-              for label in ax.get_xminorticklabels()]
+    labels = [
+        label.get_text().replace("\mathdefault", "")
+        for label in ax.get_xminorticklabels()
+    ]
     ax.set_xticklabels(labels, minor=True)
-    labels = [label.get_text().replace('\mathdefault', '')
-              for label in ax.get_yminorticklabels()]
+    labels = [
+        label.get_text().replace("\mathdefault", "")
+        for label in ax.get_yminorticklabels()
+    ]
     ax.set_yticklabels(labels, minor=True)

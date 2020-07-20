@@ -4,14 +4,19 @@ from kaitaistruct import BytesIO, KaitaiStream, KaitaiStruct
 from kaitaistruct import __version__ as ks_version
 from pkg_resources import parse_version
 
-if parse_version(ks_version) < parse_version('0.7'):
-    raise Exception("Incompatible Kaitai Struct Python API: 0.7 or later is required, but you have %s" % (ks_version))
+if parse_version(ks_version) < parse_version("0.7"):
+    raise Exception(
+        "Incompatible Kaitai Struct Python API: 0.7 or later is required, but you have %s"
+        % (ks_version)
+    )
+
 
 class DisperseReader(KaitaiStruct):
     """
     .. seealso::
        Source - http://www2.iap.fr/users/sousbie/web/html/indexf83e.html?post/NDskl-format
     """
+
     def __init__(self, _io, _parent=None, _root=None):
         self._io = _io
         self._parent = _parent
@@ -33,7 +38,6 @@ class DisperseReader(KaitaiStruct):
             self.next_node = self._io.read_u4le()
             self.next_seg = self._io.read_u4le()
 
-
     class Data(KaitaiStruct):
         def __init__(self, _io, _parent=None, _root=None):
             self._io = _io
@@ -42,25 +46,33 @@ class DisperseReader(KaitaiStruct):
             self._read()
 
         def _read(self):
-            self.seg_pos = [None] * (((2 * self._root.header.ndim) * self._root.header.nseg))
+            self.seg_pos = [None] * (
+                ((2 * self._root.header.ndim) * self._root.header.nseg)
+            )
             for i in range(((2 * self._root.header.ndim) * self._root.header.nseg)):
                 self.seg_pos[i] = self._io.read_f4le()
 
             self._unnamed1 = self._io.read_u4le()
             self._unnamed2 = self._io.read_u4le()
-            self.node_pos = [None] * ((self._root.header.ndim * self._root.header.nnode))
+            self.node_pos = [None] * (
+                (self._root.header.ndim * self._root.header.nnode)
+            )
             for i in range((self._root.header.ndim * self._root.header.nnode)):
                 self.node_pos[i] = self._io.read_f4le()
 
             self._unnamed4 = self._io.read_u4le()
             self._unnamed5 = self._io.read_u4le()
-            self.seg_data = [None] * ((self._root.header.nseg * self._root.header.nseg_data))
+            self.seg_data = [None] * (
+                (self._root.header.nseg * self._root.header.nseg_data)
+            )
             for i in range((self._root.header.nseg * self._root.header.nseg_data)):
                 self.seg_data[i] = self._io.read_f8le()
 
             self._unnamed7 = self._io.read_u4le()
             self._unnamed8 = self._io.read_u4le()
-            self.node_data = [None] * ((self._root.header.nnode * self._root.header.nnode_data))
+            self.node_data = [None] * (
+                (self._root.header.nnode * self._root.header.nnode_data)
+            )
             for i in range((self._root.header.nnode * self._root.header.nnode_data)):
                 self.node_data[i] = self._io.read_f8le()
 
@@ -68,7 +80,9 @@ class DisperseReader(KaitaiStruct):
             self._unnamed11 = self._io.read_u4le()
             self.node_data_int = [None] * (self._root.header.nnode)
             for i in range(self._root.header.nnode):
-                self.node_data_int[i] = self._root.NodeStruct(self._io, self, self._root)
+                self.node_data_int[i] = self._root.NodeStruct(
+                    self._io, self, self._root
+                )
 
             self._unnamed13 = self._io.read_u4le()
             self._unnamed14 = self._io.read_u4le()
@@ -77,7 +91,6 @@ class DisperseReader(KaitaiStruct):
                 self.seg_data_int[i] = self._root.SegStruct(self._io, self, self._root)
 
             self._unnamed16 = self._io.read_u4le()
-
 
     class Header(KaitaiStruct):
         def __init__(self, _io, _parent=None, _root=None):
@@ -88,8 +101,12 @@ class DisperseReader(KaitaiStruct):
 
         def _read(self):
             self._unnamed0 = self._io.ensure_fixed_contents(b"\x10\x00\x00\x00")
-            self._unnamed1 = self._io.ensure_fixed_contents(b"\x4E\x44\x53\x4B\x45\x4C\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00")
-            self._unnamed2 = self._io.ensure_fixed_contents(b"\x10\x00\x00\x00\x00\x00\x00\x00")
+            self._unnamed1 = self._io.ensure_fixed_contents(
+                b"\x4E\x44\x53\x4B\x45\x4C\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            )
+            self._unnamed2 = self._io.ensure_fixed_contents(
+                b"\x10\x00\x00\x00\x00\x00\x00\x00"
+            )
             self.comment = (self._io.read_bytes(80)).decode(u"ASCII")
             self.ndim = self._io.read_u4le()
             self.dims = [None] * (self.ndim)
@@ -135,7 +152,6 @@ class DisperseReader(KaitaiStruct):
             self._unnamed21 = self._io.read_u4le()
             self._unnamed22 = self._io.read_u4le()
 
-
     class NodeStruct(KaitaiStruct):
         def __init__(self, _io, _parent=None, _root=None):
             self._io = _io
@@ -156,8 +172,6 @@ class DisperseReader(KaitaiStruct):
             self.seg_data = [None] * (self.nnext)
             for i in range(self.nnext):
                 self.seg_data[i] = self._root.SegDataStruct(self._io, self, self._root)
-
-
 
     class SegStruct(KaitaiStruct):
         def __init__(self, _io, _parent=None, _root=None):

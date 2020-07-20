@@ -32,8 +32,8 @@ class read_files:
         def wrapped(*args, **kwargs):
             nargs = len(args)
             for i in range(self.N_files):
-                if not os.path.exists(args[nargs-i-1]):
-                    raise FileNotFoundError(args[nargs-i-1])
+                if not os.path.exists(args[nargs - i - 1]):
+                    raise FileNotFoundError(args[nargs - i - 1])
 
             return fun(*args, **kwargs)
 

@@ -8,9 +8,9 @@ from ..funcs import j1_over_x
 def mpmath_jn_over_x(i, x):
     xx = mpf(x)
     if x == 0:
-        return float(1/mpf(3))
+        return float(1 / mpf(3))
     else:
-        return float(sqrt(pi/mpf(2)/xx) * besselj(i+mpf("1/2"), xx) / xx)
+        return float(sqrt(pi / mpf(2) / xx) * besselj(i + mpf("1/2"), xx) / xx)
 
 
 def test_j1_over_x():
