@@ -118,6 +118,7 @@ cdef class IndVisitor(Visitor):
     cdef np.int64_t[::1] new_domain_ind
     cdef np.int64_t[::1] lvl
     cdef np.int64_t[:, ::1] nbor
+    cdef np.int32_t[:, ::1] son
 
     cdef int ind_glob
 
@@ -169,15 +170,11 @@ cdef class Selector:
     cdef Octree octree
     cdef int levelmax
     cdef int bit_length # number of bits per dimension in hilbert key
-    cdef int old_ncpu
-    cdef int new_ncpu
 
-    def __init__(self, Octree octree, int old_ncpu, int new_ncpu):
+    def __init__(self, Octree octree):
         self.octree = octree
         self.levelmax = self.octree.levelmax
         self.bit_length = self.levelmax + 1
-        self.old_ncpu = old_ncpu
-        self.new_ncpu = new_ncpu
 
     @cython.cdivision(True)
     cdef void visit_all_octs(self, Visitor visitor, str traversal = 'depth_first'):
@@ -330,6 +327,9 @@ cdef class Octree:
     cdef Oct* root
     cdef int levelmax
     cdef int _ntot
+    cdef int old_ncpu
+    cdef int new_ncpu
+
 
     def __cinit__(self):
         if debug: print("Malloc'ing root")
@@ -344,9 +344,11 @@ cdef class Octree:
         self.root.colour = -1
         self.root.parent = NULL
 
-    def __init__(self, int levelmax):
+    def __init__(self, int levelmax, int old_ncpu, int new_ncpu):
         self.levelmax = levelmax
         self._ntot = 8  # Count the 8 cells in the root oct
+        self.old_ncpu = old_ncpu
+        self.new_ncpu = new_ncpu
 
     @cython.boundscheck(False)
     @cython.cdivision(True)
@@ -492,16 +494,16 @@ cdef class Octree:
         cdef np.ndarray[np.int64_t, ndim=1] file_ind_arr = np.full(Noct, -1, np.int64)
         cdef np.ndarray[np.int64_t, ndim=1] domain_ind_arr = np.full(Noct, -1, np.int64)
         cdef np.ndarray[np.int64_t, ndim=1] new_domain_ind_arr = np.full(Noct, -1, np.int64)
-        cdef np.ndarray[np.int64_t, ndim=1] lvl_ind_arr = np.full(Noct, -1, np.int64)
-        cdef np.ndarray[np.int64_t, ndim=2] nbor_ind_arr = np.full((Noct, 6), -1, np.int64)
-        cdef np.ndarray[np.int32_t, ndim=2] son_ind_arr = np.full((Noct, 8), 0, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=1] lvl_arr = np.full(Noct, -1, np.int64)
+        cdef np.ndarray[np.int64_t, ndim=2] nbor_arr = np.full((Noct, 6), -1, np.int64)
+        cdef np.ndarray[np.int32_t, ndim=2] son_arr = np.full((Noct, 8), 0, np.int32)
 
         cdef np.int64_t[::1] file_ind = file_ind_arr
         cdef np.int64_t[::1] domain_ind = domain_ind_arr
         cdef np.int64_t[::1] new_domain_ind = new_domain_ind_arr
-        cdef np.int64_t[::1] lvl = lvl_ind_arr
-        cdef np.int64_t[:, ::1] nbor = nbor_ind_arr
-        cdef np.int32_t[:, ::1] son = son_ind_arr
+        cdef np.int64_t[::1] lvl = lvl_arr
+        cdef np.int64_t[:, ::1] nbor = nbor_arr
+        cdef np.int32_t[:, ::1] son = son_arr
 
         extract.file_ind = file_ind
         extract.domain_ind = domain_ind
@@ -530,8 +532,8 @@ cdef class Octree:
             file_ind_arr[i0:i] = file_ind_arr[order]
             domain_ind_arr[i0:i] = domain_ind_arr[order]
             new_domain_ind_arr[i0:i] = new_domain_ind_arr[order]
-            nbor_ind_arr[i0:i] = nbor_ind_arr[order]
-            son_ind_arr[i0:i] = son_ind_arr[order]
+            nbor_arr[i0:i] = nbor_arr[order]
+            son_arr[i0:i] = son_arr[order]
 
             # No need to do this for lvl ind, already sorted
             i0 = i
@@ -578,9 +580,15 @@ cdef class Octree:
         # TODO: ind_grid, next, prev, xc, father, nbor, son, cpu_map, flag1
         # TODO: numbl, headl
 
-        return (file_ind_arr, domain_ind_arr,
-                new_domain_ind_arr, lvl_ind_arr,
-                nbor_ind_arr
+        return dict(
+            file_ind=file_ind_arr,
+            old_domain_ind=domain_ind_arr,
+            new_domain_ind=new_domain_ind_arr,
+            lvl=lvl,
+            nbor=nbor_arr,
+            headl=headl_arr,
+            taill=taill_arr,
+            numbtot=numbtot_arr
         )
 
     @property
