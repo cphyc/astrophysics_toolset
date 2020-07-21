@@ -187,7 +187,7 @@ cdef class MarkNeighbourVisitor(Visitor):
             for idim in range(6):
                 # Neighbouring oct
                 itmp = self.neigh_grid[icell, idim]
-                if itmp == 6:
+                if itmp == 6:  # 6 is myself!
                     neigh = o
                 else:
                     neigh = o.neighbours[itmp]
@@ -196,13 +196,8 @@ cdef class MarkNeighbourVisitor(Visitor):
 
                 itmp = self.neigh_cell[icell, idim]
 
-                # if self.ilvl < 3:
-                #     print('  '*self.ilvl,
-                #           f'neighbour of {o.file_ind}.{icell} in dir {itmp} is {neigh.file_ind}.{itmp}')
-
                 # Neighbouring cell
                 if neigh != NULL:
-                    # print(count, itmp, self.ilvl, (neigh.colour >> itmp) & 0b1)
                     count += ((neigh.colour >> itmp) & 0b1) == 1
 
                     if count >= self.n_neigh:
