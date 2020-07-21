@@ -212,7 +212,6 @@ cdef class MarkNeighbourVisitor(Visitor):
         # Store colour in upper bits (8..15)
         o.colour |= (colour << 8)
 
-
 cdef class CopyFlag2toFlag1Visitor(Visitor):
     """Copy upper 8..15 bits into lower 0..7 bits"""
     @cython.boundscheck(False)
@@ -280,15 +279,6 @@ cdef class ExtractionVisitor(Visitor):
             if no != NULL:  # only for root
                 self.parent[self.ind_glob, 0] = encode_mapping(no.file_ind, no.domain_ind)
                 self.parent[self.ind_glob, 1] = self.icell
-
-                # Second item contains the location of the parent cell in its oct
-                # ishift = self.bit_length - self.ilvl + 2
-
-                # self.parent[self.ind_glob, 1] = find(
-                #     (self.ipos[0] >> ishift) & 0b1,
-                #     (self.ipos[1] >> ishift) & 0b1,
-                #     (self.ipos[2] >> ishift) & 0b1
-                # )
 
             self.ind_glob += 1
 
@@ -633,26 +623,10 @@ cdef class Octree:
         cdef ClearPaint cp = ClearPaint()
         sel.visit_all_octs(cp)
 
-    def select(self, np.int64_t[:, ::1] ipos, np.int64_t[::1] ilvl):
-        '''Set the lower 8 bits of all *cells* at provided positions'''
-        cdef int N = len(ipos)
-        cdef int i
-        cdef np.uint8_t ichild
-
-        cdef Oct* o
-        # global debug
-        # debug = True
-        for i in range(N):
-            o = self.get(&ipos[i, 0], ilvl[i], False,
-                         ichild_ret=&ichild, return_parent=True)
-            if o == NULL:
-                print('This should not happen!')
-                raise Exception()
-
-            o.colour |= 0b1<<(<np.int64_t>ichild)
 
 
-        # debug = False
+
+
 
     # @cython.boundscheck(False)
     # @cython.wraparound(False)
