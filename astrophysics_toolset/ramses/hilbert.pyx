@@ -3,7 +3,7 @@ import numpy as np
 
 cimport cython
 
-cdef np.uint64_t[:,:,::1] state_diagram_arr = np.array([
+cdef np.uint64_t[:, :, ::1] state_diagram = np.array([
     1, 2, 3, 2, 4, 5, 3, 5,
     0, 1, 3, 2, 7, 6, 4, 5,
     2, 6, 0, 7, 8, 8, 0, 7,
@@ -18,7 +18,7 @@ cdef np.uint64_t[:,:,::1] state_diagram_arr = np.array([
     6, 5, 1, 2, 7, 4, 0, 3,
     5, 7, 5, 3, 1, 1,11,11,
     4, 7, 3, 0, 5, 6, 2, 1,
-    6, 1, 6,10, 9, 4, 9,10, 
+    6, 1, 6,10, 9, 4, 9,10,
     6, 7, 5, 4, 1, 0, 2, 3,
     10, 3, 1, 1,10, 3, 5, 9,
     2, 5, 3, 4, 1, 6, 0, 7,
@@ -37,9 +37,10 @@ magics[3] = 0x001f0000ff0000ff
 magics[4] = 0x001f00000000ffff
 magics[5] = 0x1fffff
 
-
+@cython.boundscheck(False)
 @cython.cdivision(True)
-cdef inline np.int64_t interleave_3bits_64(np.int64_t x):
+@cython.wraparound(False)
+cdef inline np.int64_t interleave_3bits_64(np.int64_t x) nogil:
     # From https://stackoverflow.com/a/18528775/2601223
     x &= magics[5]
     x = (x | x << 32) & magics[4]
@@ -52,40 +53,47 @@ cdef inline np.int64_t interleave_3bits_64(np.int64_t x):
 @cython.boundscheck(False)
 @cython.cdivision(True)
 @cython.wraparound(False)
+cdef np.uint64_t hilbert3d_single(const np.int64_t X[3], const int bit_length) nogil:
+    global state_diagram
+    cdef np.uint64_t i_bit_mask, i_bit_mask_out, sdigit, hdigit, cstate, nstate
+    cdef int i
+    i_bit_mask = ( (interleave_3bits_64(X[0]) << 2)
+                 | (interleave_3bits_64(X[1]) << 1)
+                 | (interleave_3bits_64(X[2])))
+    i_bit_mask_out = 0
+
+    # Build Hilbert ordering using state diagram
+    cstate = 0
+    for i in range(bit_length-1, -1, -1):
+        sdigit = (i_bit_mask >> (3*i)) & 0b111
+        nstate = state_diagram[sdigit, 0, cstate]
+        hdigit = state_diagram[sdigit, 1, cstate]
+
+        # Set the three bits
+        i_bit_mask_out |= hdigit << (3*i)
+        cstate = nstate
+    return i_bit_mask_out
+
+@cython.boundscheck(False)
+@cython.cdivision(True)
+@cython.wraparound(False)
 cdef np.uint64_t[:] hilbert3d_int(np.int64_t[:, ::1] X, int bit_length):
+    global state_diagram
     cdef int npoint, ip, i
     cdef np.uint64_t[::1] order
     cdef np.uint64_t i_bit_mask, i_bit_mask_out, sdigit, hdigit, cstate, nstate
     cdef np.int64_t[:, ::1] X_view = X
-
-    cdef np.uint64_t[:, :, ::1] state_diagram = state_diagram_arr
 
     npoint = len(X_view)
     order = np.zeros(npoint, dtype=np.uint64)
 
     # Convert positions to binary
     for ip in range(npoint):
-        i_bit_mask = ( (interleave_3bits_64(X_view[ip, 0]) << 2)
-                     | (interleave_3bits_64(X_view[ip, 1]) << 1)
-                     | (interleave_3bits_64(X_view[ip, 2])))
-        i_bit_mask_out = 0
-
-        # Build Hilbert ordering using state diagram
-        cstate = 0
-        for i in range(bit_length-1, -1, -1):
-            sdigit = (i_bit_mask >> (3*i)) & 0b111
-            nstate = state_diagram[sdigit, 0, cstate]
-            hdigit = state_diagram[sdigit, 1, cstate]
-            
-            # Set the three bits
-            i_bit_mask_out |= hdigit << (3*i)
-            cstate = nstate
-
-        order[ip] = i_bit_mask_out
+        order[ip] = hilbert3d_single(&X_view[ip, 0], bit_length)
 
     return order
 
-cpdef np.ndarray[np.float64_t, ndim=1] hilbert3d(np.ndarray[np.int64_t, ndim=2] X, int bit_length):
+def hilbert3d(np.ndarray[np.int64_t, ndim=2] X, int bit_length):
     '''Compute the order using Hilbert indexing.
 
     Arguments
