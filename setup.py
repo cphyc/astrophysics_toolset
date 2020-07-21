@@ -64,5 +64,8 @@ setup(
     url='https://github.com/cphyc/astrophysics_toolset',
     version='0.1.1',
     zip_safe=False,
-    ext_modules=cythonize(extensions, language_level=3, annotate=True)
+    ext_modules=cythonize(
+        extensions, language_level=3,
+        annotate=True, gdb_debug=True, nthreads=4
+    )
 )

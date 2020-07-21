@@ -80,6 +80,7 @@ def read_amr(amr_file, longint=False, quadhilbert=False):
         nlevelmax, nboundary, ncpu, ndim, ngridmax = (headers[k] for k in ('nlevelmax', 'nboundary', 'ncpu', 'ndim', 'ngridmax'))
         
         _level, _ndom, ind_grid, next, prev, father = (np.zeros(ngridmax, dtype='i') for _ in range(6))
+        _level_cell = np.zeros((ngridmax, 8), dtype='i')
         xc = np.zeros((ngridmax, ndim), dtype='d')
         nbor = np.zeros((ngridmax, 2*ndim), dtype='i')
         son, cpu_map, refmap = (np.zeros((ngridmax, 2**ndim), dtype='i') for _ in range(3))
@@ -110,14 +111,15 @@ def read_amr(amr_file, longint=False, quadhilbert=False):
                     refmap[i:i+ncache]   = np.stack([read('i') for idim in range(2**ndim)], axis=-1)
                     
                     _level[i:i+ncache]  = ilevel + 1  # Fortran is 1-indexed
+                    _level_cell[i:i+ncache, :] = ilevel + 2
                     _ndom[i:i+ncache]   = ibound + 1  # Fortran is 1-indexed
                     i += ncache
                     
-        ind_grid, next, prev, xc, father, nbor, son, cpu_map, refmap, _level, _ndom = \
-            (_[:i] for _ in (ind_grid, next, prev, xc, father, nbor, son, cpu_map, refmap, _level, _ndom))
+        ind_grid, next, prev, xc, father, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom = \
+            (_[:i] for _ in (ind_grid, next, prev, xc, father, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom))
 
         ret.update(dict(ind_grid=ind_grid, next=next, prev=prev, xc=xc, father=father, nbor=nbor, son=son,
-                        cpu_map=cpu_map, refmap=refmap, _level=_level, _ndom=_ndom))
+                        cpu_map=cpu_map, refmap=refmap, _level=_level, _level_cell=_level_cell, _ndom=_ndom))
         
         return ret
 
@@ -214,7 +216,7 @@ for icpu, dt in data.items():
 bound_key_orig = interp1d(np.arange(dt['headers']['ncpu']+1), dt['bound_keys'])
 
 old_ncpu = dt['headers']['ncpu']
-new_ncpu = 8
+new_ncpu = 16
 new_bound_keys = bound_key_orig(np.linspace(0, dt['headers']['ncpu'], new_ncpu+1))
 
 cpu_map_new = np.digitize(hilbert_keys_glob, new_bound_keys)
@@ -253,9 +255,9 @@ print(f'Inserted {N2} octs')
 oct.print_tree(3, print_neighbours=True)
 
 # %%
-dx_neigh0 = np.array([[-1, 1,  0, 0,  0, 0],
-                     [ 0, 0, -1, 1,  0, 0],
-                     [ 0, 0,  0, 0, -1, 1]]).T[None, :, :]
+dx_neigh0 = np.array([[ 0, 0,  0, 0, -1, 1],
+                      [ 0, 0, -1, 1,  0, 0],
+                      [-1, 1,  0, 0,  0, 0]]).T[None, :, :]
 
 
 for icpu, dt in tqdm(data.items()):
@@ -396,12 +398,28 @@ for new_icpu in range(1, new_ncpu+1):
     
     oct.clear_paint()
 
-    # Select cells intersecting with domain
-    for icpu, dt in data.items():
-        lvl = dt['_level'].astype(np.uint8)
-        hkg = dt['_hilbert_key_grid'].astype(np.uint64)
+    # Select octs that intersect with domain
+    # NOTE: possible discrepancy, in RAMSES, we selects octs that contain
+    #       at least one cell that intersects. Is it the same?
+#     for icpu, dt in data.items():
+#         lvl = dt['_level'].astype(np.uint8)
+#         hkg = dt['_hilbert_key_grid'].astype(np.uint64)
 
-        ishift = 3*(bit_length-lvl+1)
+#         ishift = 3*(bit_length-lvl+1)
+#         order_min = (hkg >> ishift)
+#         order_max = (order_min + 1) << ishift
+#         order_min <<= ishift
+        
+#         mask = (order_max > bk_low) & (order_min < bk_up)
+#         counts.append(mask.sum())
+        
+#         oct.select(dt['_ixgrid'][mask].reshape(-1, 3),
+#                    dt['_level'][mask].astype(np.int64))
+    for icpu, dt in data.items():
+        lvl = dt['_level_cell'].astype(np.uint8).flatten()
+        hkg = dt['_hilbert_key'].astype(np.uint64)
+
+        ishift = 3*(bit_length-lvl+2)
         order_min = (hkg >> ishift)
         order_max = (order_min + 1) << ishift
         order_min <<= ishift
@@ -409,7 +427,8 @@ for new_icpu in range(1, new_ncpu+1):
         mask = (order_max > bk_low) & (order_min < bk_up)
         counts.append(mask.sum())
         
-        oct.select(dt['_ixgrid'][mask].reshape(-1, 3), dt['_level'][mask].astype(np.int64))
+        oct.select(dt['_ixcell'].reshape(-1, 3)[mask],
+                   lvl[mask].astype(np.int64))
 
     # Extract the file inds
     print('| ', end='')
@@ -427,7 +446,7 @@ for new_icpu in range(1, new_ncpu+1):
     
     ###########################################################
     # Amr structure
-    amr_struct = oct.domain_info()
+    amr_struct = oct.domain_info(new_icpu)
     amr_struct['bound_keys'] = new_bound_keys
     amr_struct['numbtot'] = dt['numbtot']
     amr_struct[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')] = 0, 0, 0, 0, 0
@@ -440,7 +459,7 @@ for new_icpu in range(1, new_ncpu+1):
     amr_struct['parent'] = pair2icell(amr_struct['parent'])
     amr_struct['nbor'] = pair2icell(amr_struct['nbor'])
     new_data[new_icpu] = amr_struct
-    
+    break
     # Write AMR file
     base = 'output_00080'
     os.makedirs(base, exist_ok=True)
@@ -451,10 +470,24 @@ for new_icpu in range(1, new_ncpu+1):
     break
 
 # %%
-file_inds.shape
+for icpu, dt in data.items():
+    print(icpu, '—'*140)
+    for ilvl, l in enumerate(dt['headl']):
+        print(ilvl+1, end='\t|\t')
+        for c in l:
+            print(c, end='\t')
+        print()
+    break
 
 # %%
-dt['cpu_map'].dtype
+for icpu, dt in new_data.items():
+    print(icpu, '—'*140)
+    for ilvl, l in enumerate(dt['headl']):
+        print(ilvl+1, end='\t|\t')
+        for c in l:
+            print(c, end='\t')
+        print()
+    break
 
 # %%
 fields = ('cpu_map', 'refmap')
@@ -472,23 +505,5 @@ for icpu, dt in data.items():
     find = file_inds[mask] - 1
     for f in fields:
         data_out[f][mask] = dt[f][find]
-
-# %%
-# for icpu, dt in data.items():
-#     print(icpu, '—'*140)
-#     for ilvl, l in enumerate(dt['headl']):
-#         print(ilvl+1, end='\t|\t')
-#         for c in l:
-#             print(c, end='\t')
-#         print()
-
-# %%
-# for icpu, dt in new_data.items():
-#     print(icpu, '—'*140)
-#     for ilvl, l in enumerate(dt['headl']):
-#         print(ilvl+1, end='\t|\t')
-#         for c in l:
-#             print(c, end='\t')
-#         print()
 
 # %%
