@@ -257,10 +257,12 @@ for icpu, dt in tqdm(data.items()):
     file_ind = dt['ind_grid'][mask].astype(np.int64)
     domain_ind = np.digitize(dt['_hilbert_key_grid'][mask], dt['bound_keys'])
     new_domain_ind = np.digitize(dt['_hilbert_key_grid'][mask], new_bound_keys)
+    dt['_new_cpu_map'] = np.digitize(dt['_hilbert_key'], new_bound_keys).astype(np.int32).reshape(-1, 8)
 
     lvl_ind = dt['_level'][mask].astype(np.int64)
     
-    N2 += oct.add(ipos, file_ind, domain_ind, new_domain_ind, dt['_hilbert_key_grid'], lvl_ind)
+    original_domain = np.full_like(new_domain_ind, icpu)
+    N2 += oct.add(ipos, file_ind, domain_ind, original_domain, new_domain_ind, dt['_hilbert_key_grid'], lvl_ind)
     
 print(f'Inserted {N2} octs')
 
@@ -375,9 +377,9 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
     ii = ncoarse
     ncache = 0
     def write_chunk(key, extra_slice=...):
-        f.write(amr_struct[ii:ii+ncache, extra_slice])
+        f.write_record(amr_struct[key][ii:ii+ncache, extra_slice])
 
-    for ilvl in range():
+    for ilvl in range(nlevelmax):
         for ibound in range(ncpu+nboundary):
             if ibound < ncpu:
                 ncache = numbl[ilvl, ibound]
@@ -400,49 +402,38 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
 
 
 # %%
-new_data = {}
+# new_data = {}
 
-for new_icpu in range(1, new_ncpu+1):
-    bk_low = new_bound_keys[new_icpu-1]
-    bk_up = new_bound_keys[new_icpu]
+# for new_icpu in range(1, new_ncpu+1):
+#     bk_low = new_bound_keys[new_icpu-1]
+#     bk_up = new_bound_keys[new_icpu]
     
-    print(f'Selecting grid intersecting with new cpu #{new_icpu}')
+#     print(f'Selecting grid intersecting with new cpu #{new_icpu}')
     
-    counts = []
-    
-    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up)
-    new_data[new_icpu] = amr_struct
-    break
+#     counts = []
+#     oct.clear_paint()
+#     amr_struct = oct.domain_info(new_icpu, bk_low, bk_up)
+#     new_data[new_icpu] = amr_struct
 
 # %%
-for icpu, dt in data.items():
-    print(icpu, '—'*140)
-    for ilvl, l in enumerate(dt['numbl']):
-        print(ilvl+1, end='\t|\t')
-        for c in l:
-            print(c, end='\t')
-        print('|', l.sum())
-    break
-print(dt['numbl'].sum())
+# for icpu, dt in data.items():
+#     print(icpu, '—'*140)
+#     for ilvl, l in enumerate(dt['numbl']):
+#         print(ilvl+1, end='\t|\t')
+#         for c in l:
+#             print(c, end='\t')
+#         print('|', l.sum())
+# print(dt['numbl'].sum())
 
 # %%
-for icpu, dt in new_data.items():
-    print(icpu, '—'*140)
-    for ilvl, l in enumerate(dt['numbl']):
-        print(ilvl+1, end='\t|\t')
-        for c in l:
-            print(c, end='\t')
-        print('|', l.sum())
-    break
-
-# %%
-np.unique(cpu_map_new, return_counts=True)
-
-# %%
-dt['numbl'].sum(), dt['parent'].size
-
-# %%
-import sys; sys.exit(1)
+# for icpu, dt in new_data.items():
+#     print(icpu, '—'*140)
+#     for ilvl, l in enumerate(dt['numbl']):
+#         print(ilvl+1, end='\t|\t')
+#         for c in l:
+#             print(c, end='\t')
+#         print('|', l.sum())
+# print(dt['numbl'].sum())
 
 # %%
 new_data = {}
@@ -473,20 +464,20 @@ for new_icpu in range(1, new_ncpu+1):
         
 #         oct.select(dt['_ixgrid'][mask].reshape(-1, 3),
 #                    dt['_level'][mask].astype(np.int64))
-    for icpu, dt in data.items():
-        lvl = dt['_level_cell'].astype(np.uint8).flatten()
-        hkg = dt['_hilbert_key'].astype(np.uint64)
+#     for icpu, dt in data.items():
+#         lvl = dt['_level_cell'].astype(np.uint8).flatten()
+#         hkg = dt['_hilbert_key'].astype(np.uint64)
 
-        ishift = 3*(bit_length-lvl+1)
-        order_min = (hkg >> ishift)
-        order_max = (order_min + 1) << ishift
-        order_min <<= ishift
+#         ishift = 3*(bit_length-lvl+1)
+#         order_min = (hkg >> ishift)
+#         order_max = (order_min + 1) << ishift
+#         order_min <<= ishift
         
-        mask = (order_max > bk_low) & (order_min < bk_up)
-        counts.append(mask.sum())
+#         mask = (order_max > bk_low) & (order_min < bk_up)
+#         counts.append(mask.sum())
         
-        oct.select(dt['_ixcell'].reshape(-1, 3)[mask],
-                   lvl[mask].astype(np.int64))
+#         oct.select(dt['_ixcell'].reshape(-1, 3)[mask],
+#                    lvl[mask].astype(np.int64))
 
     # Extract the file inds
     print('| ', end='')
@@ -504,7 +495,10 @@ for new_icpu in range(1, new_ncpu+1):
     
     ###########################################################
     # Amr structure
-    amr_struct = oct.domain_info(new_icpu)
+    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up)
+    file_inds = amr_struct['file_ind']
+    nocts = len(file_inds)
+    
     amr_struct['bound_keys'] = new_bound_keys
     amr_struct['numbtot'] = dt['numbtot']
     amr_struct[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')] = 0, 0, 0, 0, 0
@@ -516,8 +510,33 @@ for new_icpu in range(1, new_ncpu+1):
 
     amr_struct['parent'] = pair2icell(amr_struct['parent'])
     amr_struct['nbor'] = pair2icell(amr_struct['nbor'])
+    amr_struct['cpu_map'] = amr_struct['new_domain_ind']
+    amr_struct['ind_grid'] = np.arange(1, nocts+1, dtype=np.int32)
+    amr_struct['next'] = np.concatenate([np.arange(2, nocts+2, dtype=np.int32), [0]])
+    amr_struct['prev'] = np.concatenate([[0], np.arange(1, nocts+1, dtype=np.int32)])
     new_data[new_icpu] = amr_struct
-    break
+    
+    # Compute refmap, etc.
+    fields = (('refmap', 'refmap'), ('xc', 'xc'), ('cpu_map', '_new_cpu_map'))
+
+    data_out = {}
+
+    dt = data[1]
+    for f_new, f_old in fields:
+        data_out[f_new] = np.zeros(
+            [nocts] + list(dt[f_old].shape[1:]),
+            dtype=dt[f_old].dtype
+        )
+
+    for icpu, dt in data.items():
+        mask = amr_struct['old_domain_ind'] == icpu
+        find = file_inds[mask] - 1
+        for f_new, f_old in fields:
+            data_out[f_new][mask] = dt[f_old][find]
+            
+    for k, v in data_out.items():
+        amr_struct[k] = v
+
     # Write AMR file
     base = 'output_00080'
     os.makedirs(base, exist_ok=True)
@@ -525,50 +544,3 @@ for new_icpu in range(1, new_ncpu+1):
     amr_file = os.path.join(base, f'amr_00080.out{new_icpu:05d}')
 
     write_amr_file(headers, amr_struct, amr_file, None, None)
-    break
-
-# %%
-for icpu, dt in data.items():
-    print(icpu, '—'*140)
-    for ilvl, l in enumerate(dt['numbl']):
-        print(ilvl+1, end='\t|\t')
-        for c in l:
-            print(c, end='\t')
-        print()
-    break
-
-# %%
-for icpu, dt in new_data.items():
-    print(icpu, '—'*140)
-    for ilvl, l in enumerate(dt['numbl']):
-        print(ilvl+1, end='\t|\t')
-        for c in l:
-            print(c, end='\t')
-        print()
-    break
-
-# %%
-fields = ('cpu_map', 'refmap')
-    
-file_inds = amr_struct['file_ind']
-nocts = len(file_inds)
-
-data_out = {}
-for f in fields:
-    data_out[f] = np.zeros([nocts] + list(dt[f].shape[1:]),
-                           dtype=dt[f].dtype)
-
-for icpu, dt in data.items():
-    mask = amr_struct['old_domain_ind'] == icpu
-    find = file_inds[mask] - 1
-    for f in fields:
-        data_out[f][mask] = dt[f][find]
-
-# %%
-data[1].keys()
-
-# %%
-data[1]['parent'][:20], data[1]['ind_grid'][:20], data[1]['cpu_map'][:20]
-
-# %%
-data[1]['parent'].shape

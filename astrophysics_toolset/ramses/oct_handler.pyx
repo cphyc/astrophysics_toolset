@@ -17,6 +17,7 @@ from .hilbert cimport hilbert3d_single
 cdef struct Oct:
     np.int64_t file_ind       # on file index
     np.int64_t domain_ind     # original domain
+    np.int64_t old_domain_ind # _id_ of the file containing the oct
     np.int64_t new_domain_ind # new domain
     np.int64_t flag1         # attribute for selection
     np.uint8_t flag2           # temporary flag2
@@ -46,6 +47,7 @@ cdef inline void setup_oct(Oct *o, Oct *parent, np.uint8_t icell) nogil:
     o.icell = icell
     o.file_ind = -1
     o.domain_ind = -1
+    o.old_domain_ind = -1
     o.new_domain_ind = -1
     o.hilbert_key = -1
     o.flag1 = 0
@@ -204,7 +206,7 @@ cdef class ExtractionVisitor(Visitor):
         cdef Oct* no
 
         self.file_ind[self.ind_glob] = o.file_ind
-        self.domain_ind[self.ind_glob] = o.domain_ind
+        self.domain_ind[self.ind_glob] = o.old_domain_ind
         self.new_domain_ind[self.ind_glob] = o.new_domain_ind
         self.lvl[self.ind_glob] = self.ilvl
 
@@ -447,6 +449,7 @@ cdef class Octree:
     def add(self, const np.int64_t[:, ::1] ipos,
                   const np.int64_t[::1] file_ind,
                   const np.int64_t[::1] domain_ind,
+                  const np.int64_t[::1] old_domain_ind,
                   const np.int64_t[::1] new_domain_ind,
                   const np.uint64_t[::1] hilbert_key,
                   const np.int64_t[::1] lvl):
@@ -464,6 +467,7 @@ cdef class Octree:
                 raise Exception()
             node.file_ind = file_ind[i]
             node.domain_ind = domain_ind[i]
+            node.old_domain_ind = old_domain_ind[i]
             node.new_domain_ind = new_domain_ind[i]
             node.hilbert_key = hilbert_key[i]
             node.flag1 = 0
@@ -609,9 +613,6 @@ cdef class Octree:
         cdef FlaggedParentOctSelector selected_parent_octs = FlaggedParentOctSelector(self)
         cdef int Noct, idim
 
-        # Reset flags
-        self.clear_paint()
-
         # Mark all cells contained in an oct in the domain
         cdef MarkDomainVisitor mark_domain = MarkDomainVisitor(idomain)
         always_sel.visit_all_octs(mark_domain, traversal='breadth_first')
@@ -636,7 +637,7 @@ cdef class Octree:
         cdef ExtractionVisitor extract = ExtractionVisitor()
 
         cdef np.ndarray[np.int32_t, ndim=1] file_ind_arr = np.full(Noct, -1, np.int32)
-        cdef np.ndarray[np.int32_t, ndim=1] domain_ind_arr = np.full(Noct, -1, np.int32)
+        cdef np.ndarray[np.int32_t, ndim=1] old_domain_ind_arr = np.full(Noct, -1, np.int32)
         cdef np.ndarray[np.int32_t, ndim=1] new_domain_ind_arr = np.full(Noct, -1, np.int32)
         cdef np.ndarray[np.int32_t, ndim=1] lvl_arr = np.full(Noct, -1, np.int32)
         # These need to be int64 because of the mapping used
@@ -645,7 +646,7 @@ cdef class Octree:
         cdef np.ndarray[np.int64_t, ndim=2] parent_arr = np.full((Noct, 2), 0, np.int64)
 
         cdef np.int32_t[::1] file_ind = file_ind_arr
-        cdef np.int32_t[::1] domain_ind = domain_ind_arr
+        cdef np.int32_t[::1] domain_ind = old_domain_ind_arr
         cdef np.int32_t[::1] new_domain_ind = new_domain_ind_arr
         cdef np.int32_t[::1] lvl = lvl_arr
         cdef np.int64_t[:, :, ::1] nbor = nbor_arr
@@ -662,8 +663,8 @@ cdef class Octree:
         selected_octs.visit_all_octs(extract, traversal='breadth_first')
 
         # At this point we have
-        # - domain_ind : the old CPU domains to read
-        # - file_ind   : the position within the file
+        # - file_ind   : the position within the old file
+        # - old_domain_ind : the old CPU domains to read
         # - new_domain_ind : the new CPU domain
         # - lvl    : the level of the oct
 
@@ -672,17 +673,21 @@ cdef class Octree:
         cdef np.int64_t[::1] order
         i0 = 0
         i = 0
+
+        def _sort(arr):
+            arr[i0:i] = arr[i0:i][order]
+
         for ilvl in range(1, self.levelmax+1):
             while i < Noct and lvl[i] == ilvl:
                 i += 1
 
-            order = np.argsort(new_domain_ind_arr[i0:i], kind='stable') + i0
-            file_ind_arr[i0:i] = file_ind_arr[order]
-            domain_ind_arr[i0:i] = domain_ind_arr[order]
-            new_domain_ind_arr[i0:i] = new_domain_ind_arr[order]
-            nbor_arr[i0:i] = nbor_arr[order]
-            son_arr[i0:i] = son_arr[order]
-            parent_arr[i0:i] = parent_arr[order]
+            order = np.argsort(new_domain_ind_arr[i0:i], kind='stable')
+            _sort(file_ind_arr)
+            _sort(old_domain_ind_arr)
+            _sort(new_domain_ind_arr)
+            _sort(nbor_arr)
+            _sort(son_arr)
+            _sort(parent_arr)
 
             # No need to do this for lvl ind, already sorted
             i0 = i
@@ -751,7 +756,7 @@ cdef class Octree:
 
         return dict(
             file_ind=file_ind_arr,
-            old_domain_ind=domain_ind_arr,
+            old_domain_ind=old_domain_ind_arr,
             new_domain_ind=new_domain_ind_arr,
             lvl=lvl_arr,
             nbor=nbor_arr,
