@@ -66,6 +66,7 @@ setup(
     zip_safe=False,
     ext_modules=cythonize(
         extensions, language_level=3,
-        annotate=True, gdb_debug=True, nthreads=4
+        annotate=True, gdb_debug=True, 
+        nthreads=4
     )
 )

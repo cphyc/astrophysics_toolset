@@ -34,6 +34,16 @@ from astrophysics_toolset.ramses.hilbert import hilbert3d
 from astrophysics_toolset.ramses.oct_handler import Octree
 
 # %%
+from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
+
+ipos = np.random.randint(0, 2**9, size=(2000, 3))
+
+print(ipos)
+a = hilbert3d(ipos, 10)
+b = hilbert3d_yt(ipos, 10)
+np.testing.assert_allclose(a, b)
+
+# %%
 ds = yt.load('output_00080/info_00080.txt')
 
 
@@ -79,7 +89,7 @@ def read_amr(amr_file, longint=False, quadhilbert=False):
         # Fine levels
         nlevelmax, nboundary, ncpu, ndim, ngridmax = (headers[k] for k in ('nlevelmax', 'nboundary', 'ncpu', 'ndim', 'ngridmax'))
         
-        _level, _ndom, ind_grid, next, prev, father = (np.zeros(ngridmax, dtype='i') for _ in range(6))
+        _level, _ndom, ind_grid, next, prev, parent = (np.zeros(ngridmax, dtype='i') for _ in range(6))
         _level_cell = np.zeros((ngridmax, 8), dtype='i')
         xc = np.zeros((ngridmax, ndim), dtype='d')
         nbor = np.zeros((ngridmax, 2*ndim), dtype='i')
@@ -104,7 +114,7 @@ def read_amr(amr_file, longint=False, quadhilbert=False):
                     next[i:i+ncache]    = read('i')
                     prev[i:i+ncache]    = read('i')
                     xc[i:i+ncache]      = np.stack([read(dp) for i in range(ndim)], axis=-1)
-                    father[i:i+ncache]  = read('i')
+                    parent[i:i+ncache]  = read('i')
                     nbor[i:i+ncache]    = np.stack([read('i') for idim in range(2*ndim)], axis=-1)
                     son[i:i+ncache]     = np.stack([read('i') for idim in range(2**ndim)], axis=-1)
                     cpu_map[i:i+ncache] = np.stack([read('i') for idim in range(2**ndim)], axis=-1)
@@ -115,10 +125,10 @@ def read_amr(amr_file, longint=False, quadhilbert=False):
                     _ndom[i:i+ncache]   = ibound + 1  # Fortran is 1-indexed
                     i += ncache
                     
-        ind_grid, next, prev, xc, father, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom = \
-            (_[:i] for _ in (ind_grid, next, prev, xc, father, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom))
+        ind_grid, next, prev, xc, parent, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom = \
+            (_[:i] for _ in (ind_grid, next, prev, xc, parent, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom))
 
-        ret.update(dict(ind_grid=ind_grid, next=next, prev=prev, xc=xc, father=father, nbor=nbor, son=son,
+        ret.update(dict(ind_grid=ind_grid, next=next, prev=prev, xc=xc, parent=parent, nbor=nbor, son=son,
                         cpu_map=cpu_map, refmap=refmap, _level=_level, _level_cell=_level_cell, _ndom=_ndom))
         
         return ret
@@ -137,6 +147,9 @@ def convert_ncpus(dirname:str, out_dirname:str):
 data = convert_ncpus('/home/ccc/Documents/prog/yt-data/output_00080/', None) 
 
 # %%
+
+# %%
+nlevelmin = ds.parameters['levelmin']
 nlevelmax = data[1]['headers']['nlevelmax']
 boxlen = data[1]['headers']['boxlen']
 nx_loc = 1
@@ -236,7 +249,7 @@ cpu_map_new = np.digitize(hilbert_keys_glob, new_bound_keys)
 #     N2 += oct.add(ipos, file_ind, domain_ind, new_domain_ind, dt['_hilbert_key'], lvl_ind)
 
 # %%
-oct = Octree(nlevelmax, old_ncpu=old_ncpu, new_ncpu=new_ncpu)
+oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=new_ncpu)
 N2 = 1
 for icpu, dt in tqdm(data.items()):
     mask = dt['_level'] <= 99999
@@ -388,6 +401,51 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
 
 # %%
 new_data = {}
+
+for new_icpu in range(1, new_ncpu+1):
+    bk_low = new_bound_keys[new_icpu-1]
+    bk_up = new_bound_keys[new_icpu]
+    
+    print(f'Selecting grid intersecting with new cpu #{new_icpu}')
+    
+    counts = []
+    
+    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up)
+    new_data[new_icpu] = amr_struct
+    break
+
+# %%
+for icpu, dt in data.items():
+    print(icpu, '—'*140)
+    for ilvl, l in enumerate(dt['numbl']):
+        print(ilvl+1, end='\t|\t')
+        for c in l:
+            print(c, end='\t')
+        print('|', l.sum())
+    break
+print(dt['numbl'].sum())
+
+# %%
+for icpu, dt in new_data.items():
+    print(icpu, '—'*140)
+    for ilvl, l in enumerate(dt['numbl']):
+        print(ilvl+1, end='\t|\t')
+        for c in l:
+            print(c, end='\t')
+        print('|', l.sum())
+    break
+
+# %%
+np.unique(cpu_map_new, return_counts=True)
+
+# %%
+dt['numbl'].sum(), dt['parent'].size
+
+# %%
+import sys; sys.exit(1)
+
+# %%
+new_data = {}
 for new_icpu in range(1, new_ncpu+1):
     bk_low = new_bound_keys[new_icpu-1]
     bk_up = new_bound_keys[new_icpu]
@@ -419,7 +477,7 @@ for new_icpu in range(1, new_ncpu+1):
         lvl = dt['_level_cell'].astype(np.uint8).flatten()
         hkg = dt['_hilbert_key'].astype(np.uint64)
 
-        ishift = 3*(bit_length-lvl+2)
+        ishift = 3*(bit_length-lvl+1)
         order_min = (hkg >> ishift)
         order_max = (order_min + 1) << ishift
         order_min <<= ishift
@@ -472,7 +530,7 @@ for new_icpu in range(1, new_ncpu+1):
 # %%
 for icpu, dt in data.items():
     print(icpu, '—'*140)
-    for ilvl, l in enumerate(dt['headl']):
+    for ilvl, l in enumerate(dt['numbl']):
         print(ilvl+1, end='\t|\t')
         for c in l:
             print(c, end='\t')
@@ -482,7 +540,7 @@ for icpu, dt in data.items():
 # %%
 for icpu, dt in new_data.items():
     print(icpu, '—'*140)
-    for ilvl, l in enumerate(dt['headl']):
+    for ilvl, l in enumerate(dt['numbl']):
         print(ilvl+1, end='\t|\t')
         for c in l:
             print(c, end='\t')
@@ -507,3 +565,10 @@ for icpu, dt in data.items():
         data_out[f][mask] = dt[f][find]
 
 # %%
+data[1].keys()
+
+# %%
+data[1]['parent'][:20], data[1]['ind_grid'][:20], data[1]['cpu_map'][:20]
+
+# %%
+data[1]['parent'].shape
