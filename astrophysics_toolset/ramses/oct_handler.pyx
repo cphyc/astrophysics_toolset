@@ -115,6 +115,7 @@ cdef class MarkDomainVisitor(Visitor):
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
         cdef Oct *parent
+        cdef np.uint64_t hk_min, hk_max
 
         # Select all cells in the oct
         if o.new_domain_ind == self.idomain:
@@ -127,58 +128,6 @@ cdef class MarkDomainVisitor(Visitor):
                 o = parent
                 parent = parent.parent
 
-cdef class HilbertDomainVisitor(Visitor):
-    """Mark all cells contained in an oct in the current domain"""
-    cdef np.uint64_t bk_min, bk_max
-
-    def __init__(self, np.uint64_t bk_min, np.uint64_t bk_max):
-        self.bk_min = bk_min
-        self.bk_max = bk_max
-
-    @cython.boundscheck(False)
-    @cython.wraparound(False)
-    cdef void visit(self, Oct* o):
-        cdef int i, j, k, di, dlvl, ishift
-        cdef np.uint8_t icell
-        cdef np.int64_t ipos_child[3]
-        cdef np.uint64_t order_min, order_max
-        cdef bint ok
-
-        dlvl = self.levelmax - self.ilvl + 1
-        di = 1 << (dlvl - 1)
-        ishift = dlvl * 3
-
-        # Setup children positions
-        for icell in range(8):
-            i = (icell >> 0) & 0b1
-            j = (icell >> 1) & 0b1
-            k = (icell >> 2) & 0b1
-            ipos_child[0] = (self.ipos[0] + di*(2*i-1)) >> dlvl
-            ipos_child[1] = (self.ipos[1] + di*(2*j-1)) >> dlvl
-            ipos_child[2] = (self.ipos[2] + di*(2*k-1)) >> dlvl
-
-            order_min = hilbert3d_single(ipos_child, self.ilvl)
-            order_max = order_min + 1
-
-            order_min <<= ishift
-            order_max <<= ishift
-
-            ok = (order_max > self.bk_min) & (order_min < self.bk_max)
-            o.flag1 |= (<np.uint8_t>ok) << icell
-            
-            if self.ilvl < 3:
-                print()
-                pre = '  '*self.ilvl
-                print(pre, 'ilvl=%s, icell=%s' % (self.ilvl, icell))
-                print(pre, self.ipos[0], self.ipos[1], self.ipos[2])
-                print(pre, (self.ipos[0] + di*(2*i-1)),
-                      (self.ipos[1] + di*(2*j-1)),
-                      (self.ipos[2] + di*(2*k-1)))
-                print(pre, ipos_child[0], ipos_child[1], ipos_child[2])
-                print(pre, self.bk_max/2.**(3*self.bit_length),
-                      self.bk_min/2.**(3*self.bit_length))
-                print(pre, order_min/2.**(3*self.bit_length),
-                      order_max/2.**(3*self.bit_length), ok)
 
 cdef class CountNeighbourFlaggedOctVisitor(Visitor):
     cdef int n_neigh
@@ -188,7 +137,8 @@ cdef class CountNeighbourFlaggedOctVisitor(Visitor):
         cdef Oct *no
         cdef np.uint8_t ino
 
-        # cdef bint dbg = (o.new_domain_ind >= 8 and o.new_domain_ind <= 10 and self.ilvl >= 12)
+        cdef int count = 0
+
 
         if self.ilvl == 1:
             o.flag2 = 1
@@ -201,133 +151,25 @@ cdef class CountNeighbourFlaggedOctVisitor(Visitor):
             if no == NULL:
                 print(f'This should not happen...@lvl={self.ilvl}')
                 raise Exception()
-            if no.children[ino] != NULL and no.children[ino].flag1 > 0:
+
+            if no.children[ino] != NULL:
                 no = no.children[ino]
-                # if dbg: print('  '*self.ilvl, f'{o.file_ind}[{o.new_domain_ind}]: marked neigh in dir {i} -> {no.file_ind}[{no.new_domain_ind}]')
-                o.flag2 += 1
+                if no.flag1 > 0:
+                    count += 1
+                if count >= self.n_neigh:
+                    break
 
-        # if dbg: print('  '*self.ilvl, f'{o.file_ind}[{o.new_domain_ind}]: {o.flag2}')
-
-        if o.flag2 >= self.n_neigh:
-            # if dbg: print('  '*self.ilvl, f'{o.file_ind}[{o.new_domain_ind}]: {o.flag2}')
+        if count >= self.n_neigh:
             o.flag2 = 1
         else:
             o.flag2 = 0
 
-cdef class FlagParents(Visitor):
-    cdef void visit(self, Oct* o):
-        if o.flag1 == 0:
-            return
-        cdef Oct* parent
-
-        parent = o.parent
-        while parent != NULL and parent.flag1 == 0:
-            print('Flagging parent!')
-            parent.flag1 = 1
-            parent = parent.parent
-
-cdef class MarkNeighbourCellVisitor(Visitor):
-    """Select all cells in a domain + the ones directly adjacent to them."""
-    cdef int n_neigh
-    cdef np.uint8_t[:, ::1] neigh_grid, neigh_cell
-
-    def __cinit__(self):
-        cdef np.uint8_t _ = 6
-        self.neigh_grid = np.array(
-            [
-                [0, _, 0, _, 0, _, 0, _], # -x
-                [_, 1, _, 1, _, 1, _, 1], # +x
-                [2, 2, _, _, 2, 2, _, _], # -y
-                [_, _, 3, 3, _, _, 3, 3], # +y
-                [4, 4, 4, 4, _, _, _, _], # -z
-                [_, _, _, _, 5, 5, 5, 5]  # +z
-            ], order='F', dtype=np.uint8
-        ).T
-        _ = 8
-        self.neigh_cell = np.array(
-            [
-                [1, 0, 3, 2, 5, 4, 7, 6], # -x
-                [1, 0, 3, 2, 5, 4, 7, 6], # +x
-                [2, 3, 0, 1, 6, 7, 4, 5], # -y
-                [2, 3, 0, 1, 6, 7, 4, 5], # +y
-                [4, 5, 6, 7, 0, 1, 2, 3], # -z
-                [4, 5, 6, 7, 0, 1, 2, 3]  # +z
-            ], order='F', dtype=np.uint8
-        ).T
-
-    # @cython.boundscheck(False)
-    # @cython.wraparound(False)
-    @cython.cdivision(True)
-    cdef void visit(self, Oct* o):
-        cdef Oct* parent
-        cdef Oct* neigh
-        cdef np.uint8_t neigh_icell
-        cdef int icell, idim, itmp, count
-        cdef np.int64_t flag1, flag2, neigh_flag2
-
-        flag2 = o.flag2
-        flag1 = o.flag1
-
-        # Loop over cells
-        for icell in range(8):
-            count = 0
-
-            # Find all neighbour cells
-            for idim in range(6):
-                itmp = self.neigh_grid[icell, idim]
-                if itmp == 6:  # 6 is myself!
-                    neigh = o
-                else:
-                    # Get the uncle/aunt of oct ...
-                    neigh = o.neighbours[itmp]
-                    if neigh == NULL:
-                        continue
-                    # ... and now the sibling of the oct
-                    neigh = neigh.children[o.ineighbours[itmp]]
-
-                # Add 8 to account for bit shifting
-                neigh_icell = self.neigh_cell[icell, idim]
-
-                # Neighbouring cell
-                if neigh != NULL:
-                    neigh_flag2 = ((neigh.flag1 >> neigh_icell) >> 8) & 0b1
-                    if neigh_flag2 == 1:
-                        count += 1
-
-                    if count >= self.n_neigh:
-                        flag1 |= (0b1 << icell)
-                        break
-
-        # Store flags
-        # TODO: fix this
-        o.flag2 = flag2
-
-
-cdef class _FlagResetterVisitor(Visitor):
-    cdef int idomain
-    """Reset flag1 in octs in other domains"""
-    def __init__(self, int idomain):
-        self.idomain = idomain
-
-cdef class ResetFlag1OtherDomain(_FlagResetterVisitor):
-    cdef void visit(self, Oct* o):
-        if o.new_domain_ind != self.idomain:
-            o.flag1 = 0
-
-cdef class ResetFlag2OtherDomain(_FlagResetterVisitor):
-    cdef void visit(self, Oct* o):
-        if o.new_domain_ind != self.idomain:
-            o.flag2 = 0
 
 cdef class SetFlag2FromFlag1(Visitor):
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef void visit(self, Oct* o):
-        # cdef bint dbg = (o.new_domain_ind >= 8 and o.new_domain_ind <= 10 and self.ilvl >= 12)
-        # if dbg: print('  '*self.ilvl, f'{o.file_ind}[{o.new_domain_ind}]: setting flag1={o.flag1} | flag2={o.flag2}')
-
         o.flag1 |= o.flag2
-
 
 cdef class CountVisitor(Visitor):
     cdef int count
@@ -542,6 +384,13 @@ cdef class FlaggedOctSelector(Selector):
             return True
         return o.flag1 > 0
 
+cdef class FlaggedParentOctSelector(Selector):
+    """Traverse all octs using the parent flag1"""
+    cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl, const np.uint8_t icell):
+        if ilvl == 1:   # special case for coarse lvl
+            return True
+        return o.parent.flag1 > 0
+
 # # Select all octs that may any key in range provided
 # cdef class HilbertSelector(Selector):
 #     cdef np.uint64_t key_lower
@@ -749,7 +598,7 @@ cdef class Octree:
     # @cython.boundscheck(False)
     # @cython.wraparound(False)
     def domain_info(
-            self, 
+            self,
             int idomain,
             np.uint64_t bound_key_min,
             np.uint64_t bound_key_max
@@ -757,6 +606,7 @@ cdef class Octree:
         '''Yield the file and domain indices sorted by level'''
         cdef AlwaysSelector always_sel = AlwaysSelector(self)
         cdef FlaggedOctSelector selected_octs = FlaggedOctSelector(self)
+        cdef FlaggedParentOctSelector selected_parent_octs = FlaggedParentOctSelector(self)
         cdef int Noct, idim
 
         # Reset flags
@@ -764,41 +614,19 @@ cdef class Octree:
 
         # Mark all cells contained in an oct in the domain
         cdef MarkDomainVisitor mark_domain = MarkDomainVisitor(idomain)
-        # cdef HilbertDomainVisitor mark_hilbert = HilbertDomainVisitor(bound_key_min, bound_key_max)
         always_sel.visit_all_octs(mark_domain, traversal='breadth_first')
-        # always_sel.visit_all_octs(mark_hilbert, traversal='breadth_first')
-
-        # Mark all cells 
 
         # Expand boundaries
         # flag1: already contains marked cells
         # flag2: used as temp array
         cdef CountNeighbourFlaggedOctVisitor count_neigh = CountNeighbourFlaggedOctVisitor()
-        cdef ResetFlag2OtherDomain reset_flag2_other_dom = ResetFlag2OtherDomain(idomain)
         cdef SetFlag2FromFlag1 copy_flag2_in_flag1 = SetFlag2FromFlag1()
         for idim in range(3):
             print('Expanding - pass %s' % idim)
             count_neigh.n_neigh = idim + 1
-            always_sel.visit_all_octs(reset_flag2_other_dom)
-            always_sel.visit_all_octs(count_neigh, traversal='breadth_first')
+            always_sel.visit_all_octs(count_neigh)
             always_sel.visit_all_octs(copy_flag2_in_flag1)
 
-        # NOTE: we need to visit all octs since we're expanding
-        # cdef MarkNeighbourVisitor mark_neighbours = MarkNeighbourVisitor()
-        # cdef ResetFlag2OtherDomain reset_flag2 = ResetFlag2OtherDomain(idomain)
-        # cdef ResetFlag1OtherDomain reset_flag1 = ResetFlag1OtherDomain(idomain)
-        # cdef SetFlag2FromFlag1 copy_flag2_in_flag1 = SetFlag2FromFlag1()
-        # for idim in range(3):
-        #     # Expand boundaries by one pixel (storing flagged cells in upper bits)
-        #     # only selecting cells surrounded by this many marked cells
-        #     mark_neighbours.n_neigh = idim + 1
-        #     always_sel.visit_all_octs(reset_flag1)
-        #     always_sel.visit_all_octs(mark_neighbours) # , traversal='breadth_first')
-        #     # Store flagged cells (in upper bits) into lower bits
-        #     always_sel.visit_all_octs(copy_flag2_in_flag1)
-
-        # Count number of selected octs - at this point
-        # each oct.flag1 contains in its upper 8 bits the content of flag2
         cdef CountVisitor counter = CountVisitor(0)
         selected_octs.visit_all_octs(counter)
 
