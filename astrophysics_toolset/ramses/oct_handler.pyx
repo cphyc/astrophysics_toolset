@@ -342,11 +342,11 @@ cdef class Selector:
                 for j in range(2):
                     oi.ipos[1] += (2*j - 1) * di
                     for i in range(2):
+                        oi.ipos[0] += (2*i - 1) * di
                         icell = find(i, j, k)
                         o = oi.oct.children[icell]
                         if o == NULL:
                             continue
-                        oi.ipos[0] += (2*i - 1) * di
                         oi2 = <OctInfo*> malloc(sizeof(OctInfo))
                         oi2.oct = o
                         oi2.ipos[0] = oi.ipos[0]
@@ -576,28 +576,27 @@ cdef class Octree:
         cdef ClearPaint cp = ClearPaint()
         sel.visit_all_octs(cp)
 
-    # def select(self, np.int64_t[:, ::1] ipos, np.int64_t[::1] ilvl):
-    #     '''Set the lower 8 bits of all *cells* at provided positions'''
-    #     cdef int N = len(ipos)
-    #     cdef int i
-    #     cdef np.uint8_t ichild
+    def select(self, np.int64_t[:, ::1] ipos, np.int64_t[::1] ilvl):
+        '''Set the lower 8 bits of all *cells* at provided positions'''
+        cdef int N = len(ipos)
+        cdef int i
+        cdef np.uint8_t ichild
 
-    #     cdef Oct* o
-    #     # global debug
-    #     # debug = True
-    #     for i in range(N):
-    #         o = self.get(&ipos[i, 0], ilvl[i], False,
-    #                      ichild_ret=&ichild, return_parent=True)
-    #         if o == NULL:
-    #             print('This should not happen!')
-    #             raise Exception()
+        cdef Oct* o
 
-    #         o.flag1 |= 0b1<<(<np.int64_t>ichild)
+        for i in range(N):
+            o = self.get(&ipos[i, 0], ilvl[i], False,
+                         ichild_ret=&ichild, return_parent=True)
+            if o == NULL:
+                print('This should not happen!')
+                raise Exception()
 
-    #         if ilvl[i] < 4:
-    #             print('  '*ilvl[i], f'{ilvl[i]} | {o.file_ind}.{ichild} (flag1={o.flag1:8b})\t{ipos[i,0]:10d} {ipos[i,1]:10d} {ipos[i,2]:10d}')
 
-    #     # debug = False
+            if o.parent != NULL:
+                o.parent.flag1 |= 0b1<<o.icell
+            o.flag1 |= 0b1<<ichild
+            if o.children[ichild] != NULL:
+                o.children[ichild].flag1 = 0b1111_1111
 
     # @cython.boundscheck(False)
     # @cython.wraparound(False)
@@ -742,17 +741,30 @@ cdef class Octree:
         cdef np.int32_t[:, ::1] headl = headl_arr
         cdef np.int32_t[:, ::1] taill = taill_arr
         cdef np.int32_t[:, ::1] numbl = numbl_arr
+        cdef np.int32_t[::1] inext = np.zeros(Noct, np.int32)
+        cdef np.int32_t[::1] iprev = np.zeros(Noct, np.int32)
 
-        ilvl = 0
         icpu = 0
         # Compute headl,taill, numbl
         for i in range(Noct):
             ilvl = lvl[i]
+            # Set head at beginning new level
             icpu = new_domain_ind[i]
             if headl[ilvl-1, icpu-1] == 0:
                 headl[ilvl-1, icpu-1] = i + 1
             taill[ilvl-1, icpu-1] = i + 1
             numbl[ilvl-1, icpu-1] += 1
+
+            # Set prev array
+            iprev[i] = i
+            if i == 0 or lvl[i-1] < ilvl or new_domain_ind[i-1] != icpu:
+                iprev[i] = 0
+
+            # Set next array
+            inext[i] = i + 2
+            if i == Noct-1 or lvl[i+1] > ilvl or new_domain_ind[i+1] != icpu:
+                inext[i] = 0
+            
 
         return dict(
             file_ind=file_ind_arr,
@@ -764,7 +776,9 @@ cdef class Octree:
             taill=taill_arr,
             numbl=numbl_arr,
             son=son_arr,
-            parent=parent_arr
+            parent=parent_arr,
+            next=np.asarray(inext),
+            prev=np.asarray(iprev)
         )
 
     @property
