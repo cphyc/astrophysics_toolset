@@ -43,6 +43,7 @@ cdef inline void setup_oct(Oct *o, Oct *parent, np.uint8_t icell) nogil:
         o.children[i] = NULL
     for i in range(6):
         o.neighbours[i] = NULL
+        o.ineighbours[i] = 0
     o.parent = parent
     o.icell = icell
     o.file_ind = -1
@@ -436,7 +437,7 @@ cdef class Octree:
     def __cinit__(self):
         if debug: print("Malloc'ing root")
         self.root = <Oct*> malloc(sizeof(Oct))
-        setup_oct(self.root, NULL, 8)
+        setup_oct(self.root, parent=NULL, icell=8)
 
     def __init__(self, int levelmin, int levelmax, int old_ncpu, int new_ncpu):
         self.levelmin = levelmin
