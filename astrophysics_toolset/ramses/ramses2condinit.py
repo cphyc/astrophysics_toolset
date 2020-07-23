@@ -272,9 +272,9 @@ print(f'Inserted {N2} octs')
 oct.print_tree(3, print_neighbours=True)
 
 # %%
-dx_neigh0 = np.array([[ 0, 0,  0, 0, -1, 1],
+dx_neigh0 = np.array([[-1, 1,  0, 0,  0, 0],
                       [ 0, 0, -1, 1,  0, 0],
-                      [-1, 1,  0, 0,  0, 0]]).T[None, :, :]
+                      [ 0, 0,  0, 0, -1, 1]]).T[None, :, :]
 
 
 for icpu, dt in tqdm(data.items()):

@@ -525,9 +525,9 @@ cdef class Octree:
 
         for ilvl in range(lvl-1):
             # Compute index of child
-            ichild  = (ipos[0] >> (self.levelmax-ilvl-2)) & 0b100
+            ichild  = (ipos[0] >> (self.levelmax-ilvl-0)) & 0b001
             ichild |= (ipos[1] >> (self.levelmax-ilvl-1)) & 0b010
-            ichild |= (ipos[2] >> (self.levelmax-ilvl-0)) & 0b001
+            ichild |= (ipos[2] >> (self.levelmax-ilvl-2)) & 0b100
 
             if debug: print('\t'*ilvl, f'ilvl={ilvl}\tichild={ichild}\t{create_child}')
 
