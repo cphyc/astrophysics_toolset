@@ -565,20 +565,17 @@ for l in new_data[1]['numbl']:
         print('%7d' % c, end='')
     print()
 
-# %%
-dt, dt0 = new_data[1], data[1]
 
 # %%
-dt['xc'][:10]
-
-
-# %%
-def inspect(dt, imin=0, imax=8):
+def inspect(dt, imin=0, imax=8, reorder=True):
     sl = slice(imin, imax)
     bb = 2**17
     i,j,k=(dt['xc'][sl]*bb).T
     ijk=i+2*j+4*k
-    order =np.argsort(ijk)
+    if reorder:
+        order = np.argsort(ijk)
+    else:
+        order = np.arange(len(ijk))
     print('xc')
     print(dt['xc'][sl][order])
     print('')
@@ -591,9 +588,11 @@ def inspect(dt, imin=0, imax=8):
 
 
 # %%
-inspect(dt)
+for _ in (data[1], new_data[1]):
+    inspect(_, imax=9, reorder=True)
 
 # %%
-inspect(dt0)
+for _ in (data[1], new_data[1]):
+    inspect(_, imin=9, imax=11, reorder=True)
 
 # %%
