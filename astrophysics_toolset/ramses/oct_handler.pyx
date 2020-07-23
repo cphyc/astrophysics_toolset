@@ -215,21 +215,23 @@ cdef class ExtractionVisitor(Visitor):
             no = o.neighbours[i]
             icell = o.ineighbours[i]
             if no != NULL:
-                self.nbor[self.ind_glob, i, 0] = encode_mapping(no.file_ind, no.domain_ind)
+                self.nbor[self.ind_glob, i, 0] = encode_mapping(no.file_ind, no.old_domain_ind)
                 self.nbor[self.ind_glob, i, 1] = <np.int64_t> icell
                 if self.nbor[self.ind_glob, i, 0] < 0:
-                    raise Exception('This should not happen when encoding', no.file_ind, no.domain_ind, encode_mapping(no.file_ind, no.domain_ind))
+                    raise Exception('This should not happen when encoding', no.file_ind, no.domain_ind, encode_mapping(no.file_ind, no.old_domain_ind))
         # Fill son
         for i in range(8):
             no = o.children[i]
             if no != NULL:
-                self.son[self.ind_glob, i] = encode_mapping(no.file_ind, no.domain_ind)
+                self.son[self.ind_glob, i] = encode_mapping(no.file_ind, no.old_domain_ind)
+                if self.ilvl <= 2:
+                    print(f'{o.file_ind}.{i} -> {no.file_ind}[{no.old_domain_ind}]')
 
         # Fill parent
         no = o.parent
         if no != NULL:  # only for root
-            self.parent[self.ind_glob, 0] = encode_mapping(no.file_ind, no.domain_ind)
-            self.parent[self.ind_glob, 1] = self.icell
+            self.parent[self.ind_glob, 0] = encode_mapping(no.file_ind, no.old_domain_ind)
+            self.parent[self.ind_glob, 1] = o.icell
 
         self.ind_glob += 1
 
@@ -645,7 +647,7 @@ cdef class Octree:
         cdef np.ndarray[np.int64_t, ndim=2] parent_arr = np.full((Noct, 2), 0, np.int64)
 
         cdef np.int32_t[::1] file_ind = file_ind_arr
-        cdef np.int32_t[::1] domain_ind = old_domain_ind_arr
+        cdef np.int32_t[::1] old_domain_ind = old_domain_ind_arr
         cdef np.int32_t[::1] new_domain_ind = new_domain_ind_arr
         cdef np.int32_t[::1] lvl = lvl_arr
         cdef np.int64_t[:, :, ::1] nbor = nbor_arr
@@ -653,7 +655,7 @@ cdef class Octree:
         cdef np.int64_t[:, ::1] parent = parent_arr
 
         extract.file_ind = file_ind
-        extract.domain_ind = domain_ind
+        extract.domain_ind = old_domain_ind
         extract.new_domain_ind = new_domain_ind
         extract.lvl = lvl
         extract.nbor = nbor
@@ -700,8 +702,7 @@ cdef class Octree:
         cdef np.int64_t key
         print('Global to loc')
         for i in range(Noct):
-            # 40 bits should be enough
-            key = encode_mapping(file_ind[i], domain_ind[i])
+            key = encode_mapping(file_ind[i], old_domain_ind[i])
 
             # print('Inserting mapping[%s] = %s' % (key, i+1))
             global_to_local[key] = i + 1
