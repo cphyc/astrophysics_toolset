@@ -288,49 +288,6 @@ cdef class CountNeighbourFlaggedOctVisitor(Visitor):
         else:
             o.flag2 = 0
 
-# cdef class FlagParents(Visitor):
-#     cdef void visit(self, Oct* o):
-#         if o.flag1 == 0:
-#             return
-#         cdef Oct* parent
-
-#         parent = o.parent
-#         while parent != NULL and parent.flag1 == 0:
-#             print('Flagging parent!')
-#             parent.flag1 = 1
-#             parent = parent.parent
-
-# cdef class ExpandAllDims(Visitor):
-#     cdef void visit(self, Oct* o):
-#         cdef Oct* no
-#         cdef np.uint8_t ino
-#         cdef int i
-
-#         for i in range(6):
-#             no = o.neighbours[i]
-#             ino = o.ineighbours[i]
-
-#             if no == NULL:
-#                 # print(f'This should not happen...@lvl={self.ilvl}')
-#                 # raise Exception()
-#                 continue
-
-#             no.flag2 += 1
-
-#             if no.children[ino] != NULL:
-#                 no = no.children[ino]
-#                 no.flag2 += 1
-
-# cdef class ComputeFlag1(Visitor):
-#     cdef int n_neigh
-#     cdef void visit(self, Oct* o):
-#         cdef Oct* parent
-
-#         if o.flag2 >= self.n_neigh:
-#             o.flag1 = 1
-
-#         o.flag2 = 0
-
 cdef class CountNeighbourCellFlaggedVisitor(Visitor):
     """Select all cells in a domain + the ones directly adjacent to them."""
     cdef int n_neigh
@@ -410,23 +367,6 @@ cdef class CountNeighbourCellFlaggedVisitor(Visitor):
             parent.flag2 |= 1 << icell
             o = parent
             parent = parent.parent
-
-
-# cdef class _FlagResetterVisitor(Visitor):
-#     cdef int idomain
-#     """Reset flag1 in octs in other domains"""
-#     def __init__(self, int idomain):
-#         self.idomain = idomain
-
-# cdef class ResetFlag1OtherDomain(_FlagResetterVisitor):
-#     cdef void visit(self, Oct* o):
-#         if o.new_domain_ind != self.idomain:
-#             o.flag1 = 0
-
-# cdef class ResetFlag2OtherDomain(_FlagResetterVisitor):
-#     cdef void visit(self, Oct* o):
-#         if o.new_domain_ind != self.idomain:
-#             o.flag2 = 0
 
 cdef class SetFlag2FromFlag1(Visitor):
     @cython.boundscheck(False)
