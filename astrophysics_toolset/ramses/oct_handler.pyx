@@ -6,8 +6,8 @@ from libc.stdlib cimport malloc, free
 from libcpp.queue cimport queue
 from libcpp.unordered_map cimport unordered_map
 from libcpp.map cimport map
-
 from libcpp.pair cimport pair
+
 from cython cimport integral
 from cython.operator cimport dereference as deref
 cimport cython
@@ -131,6 +131,127 @@ cdef class MarkDomainVisitor(Visitor):
                 o = parent
                 parent = parent.parent
 
+# cdef class HilbertDomainVisitor(Visitor):
+#     """Mark all cells contained in an oct in the current domain"""
+#     cdef np.uint64_t bk_min, bk_max
+
+#     def __init__(self, np.uint64_t bk_min, np.uint64_t bk_max):
+#         self.bk_min = bk_min
+#         self.bk_max = bk_max
+
+#     @cython.boundscheck(False)
+#     @cython.wraparound(False)
+#     cdef void visit(self, Oct* o):
+#         cdef int i, j, k, di, dlvl, ishift
+#         cdef np.uint8_t icell
+#         cdef np.int64_t ipos_child[3]
+#         cdef np.uint64_t order_min, order_max
+#         cdef np.uint64_t vlow, vmax
+#         cdef bint ok
+
+#         dlvl = self.levelmax - self.ilvl + 1
+#         di = 1 << (dlvl - 1)
+#         ishift = dlvl * 3
+
+#         cdef bint dbg = ((o.new_domain_ind >= 3) and (o.new_domain_ind <= 5) and (self.ilvl >= 10)) or self.ilvl == 4
+
+#         vlow = 1<<63
+#         vmax = 0
+#         # Setup children positions
+#         for icell in range(8):
+#             i = (icell >> 0) & 0b1
+#             j = (icell >> 1) & 0b1
+#             k = (icell >> 2) & 0b1
+#             ipos_child[0] = (self.ipos[0] + di*(2*i-1)) >> dlvl
+#             ipos_child[1] = (self.ipos[1] + di*(2*j-1)) >> dlvl
+#             ipos_child[2] = (self.ipos[2] + di*(2*k-1)) >> dlvl
+
+#             order_min = hilbert3d_single(ipos_child, self.ilvl)
+#             order_max = order_min + 1
+
+#             order_min <<= ishift
+#             order_max <<= ishift
+
+#             vlow = min(order_min, vlow)
+#             vmax = max(order_max, vmax)
+
+#             ok = (order_max > self.bk_min) & (order_min < self.bk_max)
+#             if ok:
+#                 o.flag1 |= 1 << icell
+
+#             if False or dbg or not (vlow <= o.hilbert_key <= vmax):
+#                 print()
+#                 pre = '  '*self.ilvl
+#                 print(pre, 'ilvl=%s, icell=%s' % (self.ilvl, icell))
+#                 print(pre, self.ipos[0], self.ipos[1], self.ipos[2])
+#                 print(pre, (self.ipos[0] + di*(2*i-1)),
+#                       (self.ipos[1] + di*(2*j-1)),
+#                       (self.ipos[2] + di*(2*k-1)))
+#                 print(pre, ipos_child[0], ipos_child[1], ipos_child[2])
+#                 print(pre, self.bk_max/2.**(3*self.bit_length),
+#                       self.bk_min/2.**(3*self.bit_length))
+#                 print(pre, order_min/2.**(3*self.bit_length),
+#                       order_max/2.**(3*self.bit_length), ok)
+
+#         if False or dbg or not (vlow <= o.hilbert_key <= vmax):
+#             print(pre, f'{o.file_ind}[{o.new_domain_ind}] ({o.hilbert_key / 2.**(3*self.bit_length)})')
+#             print(pre, f'vlow={vlow}; vmed={o.hilbert_key}; vmax={vmax}; {vlow<o.hilbert_key}, {o.hilbert_key<vmax}')
+
+# cdef class CountNeighbourFlaggedOctVisitor(Visitor):
+#     cdef int n_neigh
+#     cdef int _DIRECTIONS[3]
+
+#     cdef bint helper(self, Oct* o, int* directions, int depth, bint dbg):
+#         cdef Oct* no
+#         cdef np.uint8_t ino
+#         cdef int ret
+
+#         if depth == 3:
+#             return False
+
+#         for i in range(2):
+#             no = o.neighbours[directions[0]*2+i]
+#             ino = o.ineighbours[directions[0]*2+i]
+
+#             no = no.children[ino]
+
+#             if no == NULL:
+#                 continue
+
+#             if dbg:
+#                 print(f'\tjumped from {o.file_ind} to {no.file_ind}')
+
+#             if no.flag1 > 0 or self.helper(no, &directions[1], depth+1, dbg):
+#                 return True
+
+#         return False
+
+
+#     cdef void visit(self, Oct* o):
+#         cdef int i, j, k
+#         cdef int directions[3]
+#         cdef bint dbg = (o.file_ind == 24994) and (o.domain_ind == 1)
+
+#         if self.ilvl == 1:
+#             o.flag1 = 1
+#             return
+
+#         for i in range(3):
+#             directions[0] = i
+#             for j in range(3):
+#                 if j == i: continue
+#                 directions[1] = j
+#                 for k in range(3):
+#                     if k == i or k == j: continue
+#                     directions[2] = k
+
+#                     if dbg:
+#                         print(f'{o.file_ind}[{o.domain_ind}]')
+#                         print(f'Exploring {directions[0]} {directions[1]} {directions[2]}')
+#                     if self.helper(o, directions, 0, dbg):
+#                         o.flag1 = 1
+#                         o.parent.flag1 = 1
+#                         return
 
 cdef class CountNeighbourFlaggedOctVisitor(Visitor):
     cdef int n_neigh
@@ -167,6 +288,145 @@ cdef class CountNeighbourFlaggedOctVisitor(Visitor):
         else:
             o.flag2 = 0
 
+# cdef class FlagParents(Visitor):
+#     cdef void visit(self, Oct* o):
+#         if o.flag1 == 0:
+#             return
+#         cdef Oct* parent
+
+#         parent = o.parent
+#         while parent != NULL and parent.flag1 == 0:
+#             print('Flagging parent!')
+#             parent.flag1 = 1
+#             parent = parent.parent
+
+# cdef class ExpandAllDims(Visitor):
+#     cdef void visit(self, Oct* o):
+#         cdef Oct* no
+#         cdef np.uint8_t ino
+#         cdef int i
+
+#         for i in range(6):
+#             no = o.neighbours[i]
+#             ino = o.ineighbours[i]
+
+#             if no == NULL:
+#                 # print(f'This should not happen...@lvl={self.ilvl}')
+#                 # raise Exception()
+#                 continue
+
+#             no.flag2 += 1
+
+#             if no.children[ino] != NULL:
+#                 no = no.children[ino]
+#                 no.flag2 += 1
+
+# cdef class ComputeFlag1(Visitor):
+#     cdef int n_neigh
+#     cdef void visit(self, Oct* o):
+#         cdef Oct* parent
+
+#         if o.flag2 >= self.n_neigh:
+#             o.flag1 = 1
+
+#         o.flag2 = 0
+
+cdef class CountNeighbourCellFlaggedVisitor(Visitor):
+    """Select all cells in a domain + the ones directly adjacent to them."""
+    cdef int n_neigh
+    cdef np.uint8_t[:, ::1] neigh_grid, neigh_cell
+
+    def __cinit__(self):
+        cdef np.uint8_t _ = 6
+        self.neigh_grid = np.array(
+            [
+                [0, _, 0, _, 0, _, 0, _], # -x
+                [_, 1, _, 1, _, 1, _, 1], # +x
+                [2, 2, _, _, 2, 2, _, _], # -y
+                [_, _, 3, 3, _, _, 3, 3], # +y
+                [4, 4, 4, 4, _, _, _, _], # -z
+                [_, _, _, _, 5, 5, 5, 5]  # +z
+            ], order='F', dtype=np.uint8
+        ).T
+        _ = 8
+        self.neigh_cell = np.array(
+            [
+                [1, 0, 3, 2, 5, 4, 7, 6], # -x
+                [1, 0, 3, 2, 5, 4, 7, 6], # +x
+                [2, 3, 0, 1, 6, 7, 4, 5], # -y
+                [2, 3, 0, 1, 6, 7, 4, 5], # +y
+                [4, 5, 6, 7, 0, 1, 2, 3], # -z
+                [4, 5, 6, 7, 0, 1, 2, 3]  # +z
+            ], order='F', dtype=np.uint8
+        ).T
+
+    # @cython.boundscheck(False)
+    # @cython.wraparound(False)
+    @cython.cdivision(True)
+    cdef void visit(self, Oct* o):
+        cdef Oct* parent
+        cdef Oct* neigh
+        cdef np.uint8_t neigh_icell
+        cdef int icell, idim, itmp, count
+        cdef np.int64_t flag1, flag2, neigh_flag2
+
+        flag2 = o.flag2
+
+        # Loop over cells
+        for icell in range(8):
+            count = 0
+
+            # Find all neighbour cells
+            for idim in range(6):
+                itmp = self.neigh_grid[icell, idim]
+                if itmp == 6:  # 6 is myself!
+                    neigh = o
+                else:
+                    # Get the uncle/aunt of oct ...
+                    neigh = o.neighbours[itmp]
+                    if neigh == NULL:
+                        continue
+                    # ... and now the sibling of the oct
+                    neigh = neigh.children[o.ineighbours[itmp]]
+
+                # Add 8 to account for bit shifting
+                neigh_icell = self.neigh_cell[icell, idim]
+
+                # Neighbouring cell
+                if neigh != NULL:
+                    if ((neigh.flag1 >> neigh_icell) & 0b1) == 1:
+                        count += 1
+
+                    if count >= self.n_neigh:
+                        flag2 |= (0b1 << icell)
+                        break
+
+        # Store flags
+        o.flag2 = flag2
+
+        # Tag oct upwards
+        parent = o.parent
+        while parent != NULL and ((parent.flag2 >> o.icell) & 0b1) == 0:
+            parent.flag2 |= 1 << icell
+            o = parent
+            parent = parent.parent
+
+
+# cdef class _FlagResetterVisitor(Visitor):
+#     cdef int idomain
+#     """Reset flag1 in octs in other domains"""
+#     def __init__(self, int idomain):
+#         self.idomain = idomain
+
+# cdef class ResetFlag1OtherDomain(_FlagResetterVisitor):
+#     cdef void visit(self, Oct* o):
+#         if o.new_domain_ind != self.idomain:
+#             o.flag1 = 0
+
+# cdef class ResetFlag2OtherDomain(_FlagResetterVisitor):
+#     cdef void visit(self, Oct* o):
+#         if o.new_domain_ind != self.idomain:
+#             o.flag2 = 0
 
 cdef class SetFlag2FromFlag1(Visitor):
     @cython.boundscheck(False)
@@ -219,14 +479,17 @@ cdef class ExtractionVisitor(Visitor):
                 self.nbor[self.ind_glob, i, 0] = encode_mapping(no.file_ind, no.old_domain_ind)
                 self.nbor[self.ind_glob, i, 1] = <np.int64_t> icell
                 if self.nbor[self.ind_glob, i, 0] < 0:
-                    raise Exception('This should not happen when encoding', no.file_ind, no.domain_ind, encode_mapping(no.file_ind, no.old_domain_ind))
+                    raise Exception(
+                        'This should not happen when encoding',
+                        no.file_ind, no.domain_ind, encode_mapping(no.file_ind, no.old_domain_ind)
+                    )
         # Fill son
         for i in range(8):
             no = o.children[i]
             if no != NULL:
                 self.son[self.ind_glob, i] = encode_mapping(no.file_ind, no.old_domain_ind)
-                if self.ilvl <= 2:
-                    print(f'{o.file_ind}.{i} -> {no.file_ind}[{no.old_domain_ind}]')
+                # if self.ilvl <= 2:
+                #     print(f'{o.file_ind}.{i} -> {no.file_ind}[{no.old_domain_ind}]')
 
         # Fill parent
         no = o.parent
@@ -330,6 +593,7 @@ cdef class Selector:
             q.pop()
 
             if not self.select(oi.oct, oi.ipos, oi.ilvl, oi.icell):
+                free(oi)
                 continue
 
             visitor.ilvl = oi.ilvl
@@ -368,7 +632,11 @@ cdef class Selector:
         raise NotImplementedError
 
 # Select all octs
-cdef class AlwaysSelector(Selector):
+cdef class AllOctsSelector(Selector):
+    cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl, const np.uint8_t icell):
+        return o != NULL
+
+cdef class AllCellsSelector(Selector):
     cdef bint select(self, Oct* o, const np.uint64_t ipos[3], const int ilvl, const np.uint8_t icell):
         return True
 
@@ -438,6 +706,10 @@ cdef class Octree:
         if debug: print("Malloc'ing root")
         self.root = <Oct*> malloc(sizeof(Oct))
         setup_oct(self.root, parent=NULL, icell=8)
+        # Set root neighbours
+        for i in range(6):
+            self.root.neighbours[i] = self.root
+            self.root.ineighbours[i] = 0
 
     def __init__(self, int levelmin, int levelmax, int old_ncpu, int new_ncpu):
         self.levelmin = levelmin
@@ -575,9 +847,9 @@ cdef class Octree:
                 o.ineighbours[j] = ichild
 
     def clear_paint(self):
-        cdef AlwaysSelector sel = AlwaysSelector(self)
+        cdef AllOctsSelector oct_selector = AllOctsSelector(self)
         cdef ClearPaint cp = ClearPaint()
-        sel.visit_all_octs(cp)
+        oct_selector.visit_all_octs(cp)
 
     def select(self, np.int64_t[:, ::1] ipos, np.int64_t[::1] ilvl):
         '''Set the lower 8 bits of all *cells* at provided positions'''
@@ -610,14 +882,15 @@ cdef class Octree:
             np.uint64_t bound_key_max
     ):
         '''Yield the file and domain indices sorted by level'''
-        cdef AlwaysSelector always_sel = AlwaysSelector(self)
+        cdef AllOctsSelector all_octs = AllOctsSelector(self)
+        cdef AllCellsSelector all_cells = AllCellsSelector(self)
         cdef FlaggedOctSelector selected_octs = FlaggedOctSelector(self)
         cdef FlaggedParentOctSelector selected_parent_octs = FlaggedParentOctSelector(self)
         cdef int Noct, idim
 
         # Mark all cells contained in an oct in the domain
         cdef MarkDomainVisitor mark_domain = MarkDomainVisitor(idomain)
-        always_sel.visit_all_octs(mark_domain, traversal='breadth_first')
+        all_octs.visit_all_octs(mark_domain, traversal='breadth_first')
 
         # Expand boundaries
         # flag1: already contains marked cells
@@ -627,9 +900,19 @@ cdef class Octree:
         for idim in range(3):
             print('Expanding - pass %s' % idim)
             count_neigh.n_neigh = idim + 1
-            always_sel.visit_all_octs(count_neigh)
-            always_sel.visit_all_octs(copy_flag2_in_flag1)
+            all_octs.visit_all_octs(count_neigh)
+            all_octs.visit_all_octs(copy_flag2_in_flag1)
 
+
+        # cdef CountNeighbourCellFlaggedVisitor count_neigh = CountNeighbourCellFlaggedVisitor()
+        # cdef SetFlag2FromFlag1 copy_flag2_in_flag1 = SetFlag2FromFlag1()
+        # for idim in range(3):
+        #     print('Expanding - pass %s' % idim)
+        #     count_neigh.n_neigh = idim + 1
+        #     all_octs.visit_all_octs(count_neigh)
+        #     all_octs.visit_all_octs(copy_flag2_in_flag1)
+
+        # Count number of selected octs
         cdef CountVisitor counter = CountVisitor(0)
         selected_octs.visit_all_octs(counter)
 
@@ -642,7 +925,6 @@ cdef class Octree:
         cdef np.ndarray[np.int32_t, ndim=1] old_domain_ind_arr = np.full(Noct, -1, np.int32)
         cdef np.ndarray[np.int32_t, ndim=1] new_domain_ind_arr = np.full(Noct, -1, np.int32)
         cdef np.ndarray[np.int32_t, ndim=1] lvl_arr = np.full(Noct, -1, np.int32)
-        # These need to be int64 because of the mapping used
         cdef np.ndarray[np.int64_t, ndim=3] nbor_arr = np.full((Noct, 6, 2), 0, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] son_arr = np.full((Noct, 8), 0, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] parent_arr = np.full((Noct, 2), 0, np.int64)
@@ -705,33 +987,43 @@ cdef class Octree:
         for i in range(Noct):
             key = encode_mapping(file_ind[i], old_domain_ind[i])
 
-            # print('Inserting mapping[%s] = %s' % (key, i+1))
+            # if lvl[i] <= 2:
+            #     print(f'Inserting mapping[{key}] = {i+1} ({file_ind[i]}:{old_domain_ind[i]})')
             global_to_local[key] = i + 1
 
         # Global indices -> local indices
         print('Inverting indices')
         cdef unordered_map[np.uint64_t, np.int64_t].iterator it, end
+        cdef bint dbg = False
         end = global_to_local.end()
         for i in range(Noct):
-            for j in range(6):
-                it = global_to_local.find(nbor[i, j, 0])
-                if it != end:
-                    nbor[i, j, 0] = deref(it).second
-                else:
+            if i == 0:
+                # Special case for root:
+                for j in range(6):
                     nbor[i, j, 0] = 0
-                    nbor[i, j, 1] = 1
+                    nbor[i, j, 1] = 0
+            else:
+                for j in range(6):
+                    it = global_to_local.find(nbor[i, j, 0])
+                    if it != end:
+                        nbor[i, j, 0] = deref(it).second
+                    else:
+                        nbor[i, j, 0] = -1
+                        nbor[i, j, 1] = 0
             for j in range(8):
                 it = global_to_local.find(son[i, j])
                 if it != end:
+                    # if dbg: print(f'Could set {i}.child[{j}]->{deref(it).second} ({son[i,j]})')
                     son[i, j] = deref(it).second
                 else:
+                    # if dbg: print(f'Could not set {i}.child[{j}] ({son[i,j]})')
                     son[i, j] = 0
             it = global_to_local.find(parent[i, 0])
             if it != end:
                 parent[i, 0] = deref(it).second
             else:
                 parent[i, 0] = 0
-                parent[i, 1] = 0
+                print(f'Could not find parent, this should not happen! (i={i})')
 
         # Create AMR structure
         print('Creating AMR structure for %s octs' % Noct)
@@ -766,7 +1058,7 @@ cdef class Octree:
             inext[i] = i + 2
             if i == Noct-1 or lvl[i+1] > ilvl or new_domain_ind[i+1] != icpu:
                 inext[i] = 0
-            
+
 
         return dict(
             file_ind=file_ind_arr,
