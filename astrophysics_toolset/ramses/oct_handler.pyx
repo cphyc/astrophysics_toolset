@@ -1023,7 +1023,8 @@ cdef class Octree:
                 parent[i, 0] = deref(it).second
             else:
                 parent[i, 0] = 0
-                print(f'Could not find parent, this should not happen! (i={i})')
+                if i > 0:   # normal for root
+                    print(f'Could not find parent, this should not happen! (i={i})')
 
         # Create AMR structure
         print('Creating AMR structure for %s octs' % Noct)

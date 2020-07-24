@@ -44,11 +44,17 @@ b = hilbert3d_yt(ipos, 10)
 np.testing.assert_allclose(a, b)
 
 # %%
-ds = yt.load('/home/ccc/Documents/prog/yt-data/output_00080/info_00080.txt')
+# ds = yt.load('/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt')
+# LONGINT, QUADHILBERT = True, False
+
+ds = yt.load_sample('output_00080', 'info_00080.txt')
+LONGINT, QUADHILBERT = False, False
+
+new_ncpu = 4
 
 
 # %%
-def read_amr(amr_file, longint=False, quadhilbert=False):
+def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
     i8b = 'l' if longint else 'i'
     qdp = 'float128' if quadhilbert else 'float64'
     dp = 'float64'
@@ -133,7 +139,7 @@ def read_amr(amr_file, longint=False, quadhilbert=False):
 
         return ret
 
-def convert_ncpus(dirname : str, out_dirname : str):
+def convert_ncpus(dirname : str):
     pattern = os.path.join(dirname, 'amr_?????.out?????')
     amr_files = sorted(glob(pattern))
 
@@ -144,11 +150,9 @@ def convert_ncpus(dirname : str, out_dirname : str):
         data[icpu] = read_amr(amr_file)  # CPU are indexed by one
     return data
 
+path = os.path.split(ds.parameter_filename)[0]
 
-data = convert_ncpus('/home/ccc/Documents/prog/yt-data/output_00080/', None)
-
-# %%
-data[1]['refmap'].shape
+data = convert_ncpus(path)
 
 # %%
 nlevelmin = ds.parameters['levelmin']
@@ -231,7 +235,6 @@ for icpu, dt in data.items():
 bound_key_orig = interp1d(np.arange(dt['headers']['ncpu']+1), dt['bound_keys'])
 
 old_ncpu = dt['headers']['ncpu']
-new_ncpu = 16
 new_bound_keys = bound_key_orig(np.linspace(0, dt['headers']['ncpu'], new_ncpu+1))
 
 cpu_map_new = np.digitize(hilbert_keys_glob, new_bound_keys)
@@ -290,10 +293,13 @@ for icpu, dt in tqdm(data.items()):
     oct.set_neighbours(ixc, ixc_neigh, lvl)
 
 # %%
-oct.print_tree(3, print_neighbours=True)
+ioct = 17
+print('ioct=%s' % ioct)
+print('igrid', (data[1]['nbor'][ioct-1]-ncoarse) % ngridmax)
+print('icell', (data[1]['nbor'][ioct-1]-ncoarse) // ngridmax)
 
 # %%
-dt['headers']
+oct.print_tree(3, print_neighbours=True)
 
 # %%
 LONGINT = False
@@ -354,7 +360,7 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
         convert(key, np.float64)
     # Write headers
     f = FF(amr_file, mode='w')
-    print('Headers')
+    print('Writing headers. ', end='')
     for k, t in _HEADERS:
         tmp = np.atleast_1d(headers[k]).astype(t)
         print(k, end='...')
@@ -362,13 +368,13 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
     print()
 
     # Write global AMR structure
-    print('Gobal AMR structure')
+    print('Writing global AMR structure. ', end='')
     for k, t in _AMR_STRUCT:
         if not isinstance(t, int):
-            tmp = np.atleast_1d(amr_struct[k]).astype(t)
+            tmp = np.ascontiguousarray(np.atleast_1d(amr_struct[k]), dtype=t)
         else:
             tmp = np.char.asarray(amr_struct[k].ljust(128).encode(), 1).astype('c')
-        print(f'\tWriting {k}')
+        print(f'{k}', end='...')
         f.write_vector(tmp)
 
     # Coarse level
@@ -390,10 +396,10 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
     if nboundary > 0:
         raise NotImplementedError
 
-    ii = ncoarse
+    ii = 0 # ncoarse
     ncache = 0
     def write_chunk(key, extra_slice=...):
-        f.write_vector(amr_struct[key][ii:ii+ncache, extra_slice])
+        f.write_vector(np.ascontiguousarray(amr_struct[key][ii:ii+ncache, extra_slice]))
 
     for ilvl in range(nlevelmax):
         for ibound in range(ncpu+nboundary):
@@ -417,41 +423,9 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
                 write_chunk('cpu_map', idim)
             for idim in range(2**3):
                 write_chunk('refmap', idim)
+                
+            ii += ncache
 
-
-# %%
-# new_data = {}
-
-# for new_icpu in range(1, new_ncpu+1):
-#     bk_low = new_bound_keys[new_icpu-1]
-#     bk_up = new_bound_keys[new_icpu]
-
-#     print(f'Selecting grid intersecting with new cpu #{new_icpu}')
-
-#     counts = []
-#     oct.clear_paint()
-#     amr_struct = oct.domain_info(new_icpu, bk_low, bk_up)
-#     new_data[new_icpu] = amr_struct
-
-# %%
-# for icpu, dt in data.items():
-#     print(icpu, '—'*140)
-#     for ilvl, l in enumerate(dt['numbl']):
-#         print(ilvl+1, end='\t|\t')
-#         for c in l:
-#             print(c, end='\t')
-#         print('|', l.sum())
-# print(dt['numbl'].sum())
-
-# %%
-# for icpu, dt in new_data.items():
-#     print(icpu, '—'*140)
-#     for ilvl, l in enumerate(dt['numbl']):
-#         print(ilvl+1, end='\t|\t')
-#         for c in l:
-#             print(c, end='\t')
-#         print('|', l.sum())
-# print(dt['numbl'].sum())
 
 # %%
 new_data = {}
@@ -461,41 +435,22 @@ for new_icpu in range(1, new_ncpu+1):
 
     print(f'Selecting grid intersecting with new cpu #{new_icpu}')
 
-    counts = []
-
     oct.clear_paint()
 
-    # Select octs that intersect with domain
-    # NOTE: possible discrepancy, in RAMSES, we selects octs that contain
-    #       at least one cell that intersects. Is it the same?
-#     for icpu, dt in data.items():
-#         lvl = dt['_level'].astype(np.uint8)
-#         hkg = dt['_hilbert_key_grid'].astype(np.uint64)
+    # Select cells that intersect with domain
+    for icpu, dt in data.items():
+        lvl = dt['_level_cell'].astype(np.uint8).flatten()
+        hkg = dt['_hilbert_key'].astype(np.uint64)
 
-#         ishift = 3*(bit_length-lvl+1)
-#         order_min = (hkg >> ishift)
-#         order_max = (order_min + 1) << ishift
-#         order_min <<= ishift
+        ishift = 3*(bit_length-lvl+1)
+        order_min = (hkg >> ishift)
+        order_max = (order_min + 1) << ishift
+        order_min <<= ishift
 
-#         mask = (order_max > bk_low) & (order_min < bk_up)
-#         counts.append(mask.sum())
+        mask = (order_max > bk_low) & (order_min < bk_up)
 
-#         oct.select(dt['_ixgrid'][mask].reshape(-1, 3),
-#                    dt['_level'][mask].astype(np.int64))
-#     for icpu, dt in data.items():
-#         lvl = dt['_level_cell'].astype(np.uint8).flatten()
-#         hkg = dt['_hilbert_key'].astype(np.uint64)
-
-#         ishift = 3*(bit_length-lvl+1)
-#         order_min = (hkg >> ishift)
-#         order_max = (order_min + 1) << ishift
-#         order_min <<= ishift
-
-#         mask = (order_max > bk_low) & (order_min < bk_up)
-#         counts.append(mask.sum())
-
-#         oct.select(dt['_ixcell'].reshape(-1, 3)[mask],
-#                    lvl[mask].astype(np.int64))
+        oct.select(dt['_ixcell'].reshape(-1, 3)[mask],
+                  lvl[mask].astype(np.int64))
 
     ###########################################################
     # Headers
@@ -548,23 +503,45 @@ for new_icpu in range(1, new_ncpu+1):
     # Write AMR file
     base = 'output_00080'
     os.makedirs(base, exist_ok=True)
-
     amr_file = os.path.join(base, f'amr_00001.out{new_icpu:05d}')
-
-    write_amr_file(headers, amr_struct, amr_file, None, None)
+    
+    tmp = data[new_icpu].copy()
+    tmp[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')] = amr_struct[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')]
+    tmp['ordering'] = 'hilbert'
+    tmp = amr_struct
+    write_amr_file(headers, tmp, amr_file, None, None)
 
 # %%
+print(' old structure '.center(120, '='))
 for l in data[1]['numbl']:
     for c in l:
         print('%7d' % c, end='')
-    print()
+    print('| %s' % l.sum())
 
 # %%
+print(' new structure '.center(120, '='))
+
 for l in new_data[1]['numbl']:
     for c in l:
         print('%7d' % c, end='')
-    print()
+    print('| %s' % l.sum())
 
+# %%
+dt = new_data[10]
+dto = data[10]
+
+# %%
+np.all(dt['ind_grid'][1:] == dt['ind_grid'][:-1] + 1)
+
+# %%
+np.all(dto['ind_grid'][1:] == dto['ind_grid'][:-1] + 1)
+
+# %%
+import sys; sys.exit(0)
+
+
+# %% [markdown]
+# ## Debugging the grid
 
 # %%
 def inspect(dt, imin=0, imax=8, reorder=True):
@@ -583,16 +560,132 @@ def inspect(dt, imin=0, imax=8, reorder=True):
     print(dt['son'][sl][order])
     
     print('')
-    print('parent')
-    print(dt['parent'][sl][order])
+    print('nbor')
+    print(dt['nbor'][sl][order])
 
+
+# %%
+inspect(new_data[1])
+
+# %%
+ii = 0
+
+# %%
+ii += 1
+
+b, d = None, None
+for dt in (data[ii], new_data[ii]):
+    sl = slice(0, 65)
+    order = np.argsort(dt['xc'][sl, 0]*2**20 + dt['xc'][sl, 1]*2**10 + dt['xc'][sl, 2])
+    a = dt['parent'][sl][order]
+    b = a.copy() if b is None else b
+
+    c = dt['ind_grid'][sl][order]
+    d = c.copy() if d is None else d
+
+def order(xc):
+    i, j, k = (xc.T*2**20).astype(np.uint64)
+    return np.argsort(i<<40 + j<<20 + k)
+
+# Find elements in new mapping that aren't in the old one
+
+ixc_orig = np.round(data[1]['xc']*2**17).astype(np.uint64)
+ixc_new = np.round(new_data[1]['xc']*2**17).astype(np.uint64)
+
+_ijk = lambda i, j, k: ((i<<20) + j<<20) + k
+ijk_orig = set(_ijk(*ixc_orig.T))
+ijk_new = set(_ijk(*ixc_new.T))
+
+ijk_diff = np.asarray(list(ijk_orig - ijk_new))
+if ijk_diff.size == 0:
+    print(ii, 'YOLO! FOUND ALL OCTS')
+else:
+    i = ijk_diff >> 40
+    j = (ijk_diff >> 20) & ((1<<21) - 1)
+    k = (ijk_diff) & ((1<<21) - 1)
+
+    ixc_diff = np.stack((i, j, k), axis=-1)
+
+# %%
+data[1]['ind_grid'][np.argwhere(np.all(ixc_diff[-1] == ixc_orig, axis=1)).flatten()]
+
+# %%
+from collections import defaultdict
+
+def print_tree(ioct, dt):
+    header='     ioct  xc                                     cpu_map                    son                                                cpu_neigh            neigh_ind                            '
+    print(header)
+    print('—'*len(header))
+    while ioct >= 1:
+        neigh_icell, neigh_igrid = np.unravel_index(dt['nbor'][ioct-1]-ncoarse, (8, ngridmax))
+        cpu_neigh = dt['cpu_map'][neigh_igrid-1, neigh_icell]
+        def __(x, n):
+            return str(x).ljust(n)
+        print('', f'{ioct:>8d}', __(dt['xc'][ioct-1], 29), '\t', __(dt['cpu_map'][ioct-1], 26), __(dt['son'][ioct-1], 50), __(cpu_neigh, 20), __(dt['son'][neigh_igrid-1, neigh_icell], 20))
+        ioct = (dt['parent'][ioct-1] - ncoarse) % ngridmax
+    
+DIRECTIONS = [0, 1, 2]
+def get_cube(ioct, dt, ret=None, prev_directions=[], depth=0, path=''):
+    if ret is None:
+        ret = {}
+        ret['iocts'] = set((ioct, ))
+        ret['path'] = defaultdict(list)
+        ret['path'][ioct] = ['']
+
+    for idir in (_ for _ in DIRECTIONS if _ not in prev_directions):
+        neigh_icell, neigh_igrid = np.unravel_index(dt['nbor'][ioct-1]-ncoarse, (8, ngridmax))
+        iocts_neigh = dt['son'][neigh_igrid-1, neigh_icell][2*idir:2*idir+2]
+        for ii, ioct_neigh in enumerate(iocts_neigh):
+            if ioct_neigh == 0:
+                continue
+            new_directions = prev_directions + [idir]
+            ret['iocts'].add(ioct_neigh)
+            new_path = str(path)
+            new_path += '-+'[ii] + 'xyz'[idir]
+            ret['path'][ioct_neigh].append(new_path)
+            get_cube(ioct_neigh, dt, ret=ret, prev_directions=new_directions, depth=depth+1, path=new_path)
+    
+    paths = ret['path']
+    iocts = sorted(ret['iocts'], key=lambda k: (len(paths[k][0]), paths[k][0]))
+    return iocts, {ioct: paths[ioct] for ioct in iocts}
+
+def match_tree(ioct, dt, new_dt):
+    '''Find an oct in the other tree.'''
+    # Walk the tree up
+    icell_list = []
+    while ioct > 1:
+        neigh_icell, neigh_igrid = np.unravel_index(dt['nbor'][ioct-1]-ncoarse, (8, ngridmax))
+        ioct_parent = (dt['parent'][ioct-1] - ncoarse) % ngridmax
+        my_index = np.argwhere(dt['son'][ioct_parent-1] == ioct).flatten()[0]
+        icell_list.append(my_index)
+        ioct = ioct_parent
+
+    ioct_old = 1
+    ioct = 1
+    ioct_prev = -1
+    for icell in reversed(icell_list):
+        ioct_prev = ioct
+        ioct = new_dt['son'][ioct-1][icell]
+        ioct_old = dt['son'][ioct_old-1][icell]
+        print(f'{ioct_old:10d} {ioct:10d}')
+    return ioct_prev
+
+
+# %%
+ioct_in_new_data = match_tree(28233, data[1], new_data[1])
+
+# %%
+iocts, path = get_cube(24994, data[1])
+for ioct in iocts:
+    print(ioct, path[ioct])
+    print_tree(ioct, data[1])
+
+# %%
+iocts, path = get_cube(ioct_in_new_data, new_data[1])
+for ioct in iocts:
+    print(ioct, path[ioct])
+    print_tree(ioct, new_data[1])
 
 # %%
 for _ in (data[1], new_data[1]):
-    inspect(_, imax=9, reorder=True)
-
-# %%
-for _ in (data[1], new_data[1]):
-    inspect(_, imin=9, imax=11, reorder=True)
-
-# %%
+    inspect(_, imin=50, imax=60, reorder=True)
