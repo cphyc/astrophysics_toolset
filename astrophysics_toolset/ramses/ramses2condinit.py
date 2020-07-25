@@ -517,15 +517,135 @@ for l in new_data[1]['numbl']:
         print('%7d' % c, end='')
     print('| %s' % l.sum())
 
-# %%
-dt = new_data[10]
-dto = data[10]
+
+# %% [markdown]
+# Now write hydro
 
 # %%
-np.all(dt['ind_grid'][1:] == dt['ind_grid'][:-1] + 1)
+# # %%cython -a
+
+# from yt.utilities.cython_fortran_utils cimport FortranFile as FF
+# cimport numpy as np
+# import numpy as np
+# cimport cython
+
+#@cython.wraparound(False)
+#@cython.boundscheck(False)
+# def read_entire_file(tuple headers_desc, np.float64_t[:, :, ::1] data_out, str fname):
+def read_entire_file(field_handler):
+    #cdef FF fin
+    #cdef int nvar, nboundaries, nlevelmax, ncpu, ilvl, icpu, ilvl2, ncache, icell, ivar, ii
+
+    with FF(field_handler.fname, 'r') as fin:
+        headers = fin.read_attrs(field_handler.attrs)
+        nvar = headers['nvar']
+        nboundaries = headers['nboundary']
+        nlevelmax = headers['nlevelmax']
+        ncpu = headers['ncpu']
+
+        data_out = np.full((nvar, 8, field_handler.domain.amr_header['ngrid_current']), 0, dtype='d')
+
+        ii = 0
+        for ilvl in range(nlevelmax):
+            for icpu in range(ncpu+nboundaries):
+                ilvl2 = fin.read_int()
+                ncache = fin.read_int()
+                if ncache > 0:
+                    for icell in range(8):
+                        for ivar in range(nvar):
+                            data_out[ivar, icell, ii:ii+ncache] = fin.read_vector('d')
+                ii += ncache
+    return headers, data_out
+
+
+def write_entire_file(fname, headers, data, numbl):
+    with FF(fname, mode='w') as fout:
+        for v in headers.values():
+            fout.write_vector(np.asarray(v))
+        nvar = headers['nvar']
+        nboundaries = headers['nboundary']
+        nlevelmax = headers['nlevelmax']
+        ncpu = headers['ncpu']
+
+        ii = 0
+
+        for ilvl in range(1, 1+nlevelmax):
+            for icpu in range(1, ncpu+nboundaries+1):
+                fout.write_vector(np.asarray([ilvl]))
+                print(numbl.shape, icpu, ilvl)
+                ncache = numbl[ilvl-1, icpu-1]
+                fout.write_vector(np.asarray([ncache]))
+                if ncache > 0:
+                    for icell in range(8):
+                        for ivar in range(nvar):
+                            tmp = data[ivar, icell, ii:ii+ncache]
+                            fout.write_vector(np.ascontiguousarray(tmp))
+                ii += ncache
+
+
+def write_one_field_file(filename, amr_structure, headers, data_old):
+    ncpu_old = len(data_old)
+
+    # Loop over AMR structure, and read relevant files
+    nvar = headers['nvar']
+    nocts = amr_structure['owning_cpu'].size
+    data_new = np.full((nvar, 8, nocts), np.nan, dtype='d')
+
+    for icpu_old in range(1, 1+ncpu_old):
+        mask = amr_structure['owning_cpu'] == icpu_old   # select octs in this file
+        n_to_read = mask.sum()
+        if n_to_read == 0:
+            continue
+
+        # Original positions
+        file_ind = amr_structure['file_ind'][mask] - 1
+
+        # Target position
+        new_file_ind = amr_structure['ind_grid'][mask] - 1
+        data_new[..., new_file_ind] = data_old[icpu_old][..., file_ind]
+
+    # Update ncpu
+
+    # Write file
+    write_entire_file(filename, headers, data_new, amr_structure['numbl'])
+
+
+filename_mapping = {
+    'gravity': 'grav_{iout:05d}.out{icpu:05d}',
+    'ramses': 'hydro_{iout:05d}.out{icpu:05d}'
+}
+
+def rewrite(amr_structure, domains, base_out='output_00080/'):
+    nkind = len(domains[0].field_handlers)
+    ncpu_new = len(amr_structure)
+    filenames = [filename_mapping[fh.ftype] for fh in domains[0].field_handlers]
+
+    progress = tqdm(total=nkind)
+    for i in range(nkind):
+        progress.set_description(f'{domains[0].field_handlers[i].ftype}: R')
+        data_orig = {}
+        for icpu, dom in enumerate(tqdm(domains, desc='Reading files', leave=False)):
+            fh = dom.field_handlers[i]
+            headers, data_orig[icpu+1] = read_entire_file(fh)
+
+        # Need to update the number of cpus in the headers
+        headers['ncpu'] = ncpu_new
+
+        progress.set_description(f'{domains[0].field_handlers[i].ftype}: W')
+        for icpu in amr_structure.keys():
+            fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
+            write_one_field_file(fname, amr_structure[icpu], headers, data_old=data_orig)
+        progress.update(1)
+
+
+rewrite(new_data, ds.index.domains)
+
 
 # %%
-np.all(dto['ind_grid'][1:] == dto['ind_grid'][:-1] + 1)
+amr_struct
+
+# %%
+# %debug
 
 # %%
 import sys; sys.exit(0)
