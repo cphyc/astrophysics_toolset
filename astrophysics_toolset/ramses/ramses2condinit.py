@@ -44,11 +44,19 @@ b = hilbert3d_yt(ipos, 10)
 np.testing.assert_allclose(a, b)
 
 # %%
-# ds = yt.load('/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt')
-# LONGINT, QUADHILBERT = True, False
+ds = yt.load('/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt')
+LONGINT, QUADHILBERT = True, False
+default_headers = {
+    'ramses': {},
+    'gravity': {'nvar': 4}
+}
 
-ds = yt.load_sample('output_00080', 'info_00080.txt')
-LONGINT, QUADHILBERT = False, False
+# ds = yt.load_sample('output_00080', 'info_00080.txt')
+# LONGINT, QUADHILBERT = False, False
+# default_headers = {
+#     'ramses': {},
+#     'gravity': {'nvar': 3}
+# }
 
 new_ncpu = 4
 
@@ -532,12 +540,12 @@ for l in new_data[1]['numbl']:
 #@cython.wraparound(False)
 #@cython.boundscheck(False)
 # def read_entire_file(tuple headers_desc, np.float64_t[:, :, ::1] data_out, str fname):
-def read_entire_file(field_handler):
+def read_entire_file(field_handler, headers={}):
     #cdef FF fin
     #cdef int nvar, nboundaries, nlevelmax, ncpu, ilvl, icpu, ilvl2, ncache, icell, ivar, ii
 
     with FF(field_handler.fname, 'r') as fin:
-        headers = fin.read_attrs(field_handler.attrs)
+        headers.update(fin.read_attrs(field_handler.attrs))
         nvar = headers['nvar']
         nboundaries = headers['nboundary']
         nlevelmax = headers['nlevelmax']
@@ -571,9 +579,10 @@ def write_entire_file(fname, headers, data, numbl):
 
         for ilvl in range(1, 1+nlevelmax):
             for icpu in range(1, ncpu+nboundaries+1):
-                fout.write_vector(np.asarray([ilvl]))
                 ncache = numbl[ilvl-1, icpu-1]
-                fout.write_vector(np.asarray([ncache]))
+                print(f'Writing {ilvl}:{ncache} @ {ilvl}:{icpu}')
+                fout.write_vector(np.asarray([ilvl], dtype=np.int32))
+                fout.write_vector(np.asarray([ncache], dtype=np.int32))
                 if ncache > 0:
                     for icell in range(8):
                         for ivar in range(nvar):
@@ -619,16 +628,19 @@ def rewrite(amr_structure, domains, base_out='output_00080/'):
 
     progress = tqdm(total=nkind)
     for i in range(nkind):
-        progress.set_description(f'{domains[0].field_handlers[i].ftype}: R')
+        ftype = domains[0].field_handlers[i].ftype
+        progress.set_description(f'{ftype}: R')
         data_orig = {}
+        headers = {}
         for icpu, dom in enumerate(tqdm(domains, desc='Reading files', leave=False)):
             fh = dom.field_handlers[i]
-            headers, data_orig[icpu+1] = read_entire_file(fh)
+            ret = read_entire_file(fh, default_headers[ftype].copy())
+            headers, data_orig[icpu+1] = ret
 
         # Need to update the number of cpus in the headers
         headers['ncpu'] = ncpu_new
 
-        progress.set_description(f'{domains[0].field_handlers[i].ftype}: W')
+        progress.set_description(f'{ftype}: W')
         for icpu in amr_structure.keys():
             fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
             write_one_field_file(fname, amr_structure[icpu], headers, data_old=data_orig)
