@@ -267,7 +267,7 @@ for icpu, dt in tqdm(data.items()):
     lvl_ind = dt['_level'][mask].astype(np.int64)
 
     original_domain = np.full_like(new_domain_ind, icpu)
-    N2 += oct.add(ipos, file_ind, domain_ind, original_domain, new_domain_ind, dt['_hilbert_key_grid'], lvl_ind)
+    N2 += oct.add(ipos, file_ind, domain_ind=domain_ind, new_domain_ind=new_domain_ind, owning_cpu=original_domain, hilbert_key=dt['_hilbert_key_grid'], lvl=lvl_ind)
 
 print(f'Inserted {N2} octs')
 
@@ -291,12 +291,6 @@ for icpu, dt in tqdm(data.items()):
 
     # Set neighbours for all octs that do have a child
     oct.set_neighbours(ixc, ixc_neigh, lvl)
-
-# %%
-ioct = 17
-print('ioct=%s' % ioct)
-print('igrid', (data[1]['nbor'][ioct-1]-ncoarse) % ngridmax)
-print('icell', (data[1]['nbor'][ioct-1]-ncoarse) // ngridmax)
 
 # %%
 oct.print_tree(3, print_neighbours=True)
@@ -423,7 +417,7 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
                 write_chunk('cpu_map', idim)
             for idim in range(2**3):
                 write_chunk('refmap', idim)
-                
+
             ii += ncache
 
 
@@ -492,7 +486,7 @@ for new_icpu in range(1, new_ncpu+1):
         )
 
     for icpu, dt in data.items():
-        mask = amr_struct['old_domain_ind'] == icpu
+        mask = amr_struct['owning_cpu'] == icpu
         find = file_inds[mask] - 1
         for f_new, f_old in fields:
             data_out[f_new][mask] = dt[f_old][find]
@@ -504,10 +498,7 @@ for new_icpu in range(1, new_ncpu+1):
     base = 'output_00080'
     os.makedirs(base, exist_ok=True)
     amr_file = os.path.join(base, f'amr_00001.out{new_icpu:05d}')
-    
-    tmp = data[new_icpu].copy()
-    tmp[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')] = amr_struct[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')]
-    tmp['ordering'] = 'hilbert'
+
     tmp = amr_struct
     write_amr_file(headers, tmp, amr_file, None, None)
 
@@ -558,7 +549,7 @@ def inspect(dt, imin=0, imax=8, reorder=True):
     print('')
     print('son')
     print(dt['son'][sl][order])
-    
+
     print('')
     print('nbor')
     print(dt['nbor'][sl][order])
@@ -623,7 +614,7 @@ def print_tree(ioct, dt):
             return str(x).ljust(n)
         print('', f'{ioct:>8d}', __(dt['xc'][ioct-1], 29), '\t', __(dt['cpu_map'][ioct-1], 26), __(dt['son'][ioct-1], 50), __(cpu_neigh, 20), __(dt['son'][neigh_igrid-1, neigh_icell], 20))
         ioct = (dt['parent'][ioct-1] - ncoarse) % ngridmax
-    
+
 DIRECTIONS = [0, 1, 2]
 def get_cube(ioct, dt, ret=None, prev_directions=[], depth=0, path=''):
     if ret is None:
@@ -644,7 +635,7 @@ def get_cube(ioct, dt, ret=None, prev_directions=[], depth=0, path=''):
             new_path += '-+'[ii] + 'xyz'[idir]
             ret['path'][ioct_neigh].append(new_path)
             get_cube(ioct_neigh, dt, ret=ret, prev_directions=new_directions, depth=depth+1, path=new_path)
-    
+
     paths = ret['path']
     iocts = sorted(ret['iocts'], key=lambda k: (len(paths[k][0]), paths[k][0]))
     return iocts, {ioct: paths[ioct] for ioct in iocts}
