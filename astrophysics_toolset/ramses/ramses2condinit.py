@@ -572,7 +572,6 @@ def write_entire_file(fname, headers, data, numbl):
         for ilvl in range(1, 1+nlevelmax):
             for icpu in range(1, ncpu+nboundaries+1):
                 fout.write_vector(np.asarray([ilvl]))
-                print(numbl.shape, icpu, ilvl)
                 ncache = numbl[ilvl-1, icpu-1]
                 fout.write_vector(np.asarray([ncache]))
                 if ncache > 0:
@@ -603,8 +602,6 @@ def write_one_field_file(filename, amr_structure, headers, data_old):
         # Target position
         new_file_ind = amr_structure['ind_grid'][mask] - 1
         data_new[..., new_file_ind] = data_old[icpu_old][..., file_ind]
-
-    # Update ncpu
 
     # Write file
     write_entire_file(filename, headers, data_new, amr_structure['numbl'])
