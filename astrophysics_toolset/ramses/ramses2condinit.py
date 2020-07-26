@@ -60,6 +60,9 @@ default_headers = {
 
 new_ncpu = 4
 
+# %%
+dsn = yt.load('output_00080/info_00001.txt')
+
 
 # %%
 def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
@@ -540,7 +543,7 @@ for l in new_data[1]['numbl']:
 #@cython.wraparound(False)
 #@cython.boundscheck(False)
 # def read_entire_file(tuple headers_desc, np.float64_t[:, :, ::1] data_out, str fname):
-def read_entire_file(field_handler, headers={}):
+def fluid_file_reader(field_handler, headers={}):
     #cdef FF fin
     #cdef int nvar, nboundaries, nlevelmax, ncpu, ilvl, icpu, ilvl2, ncache, icell, ivar, ii
 
@@ -566,7 +569,7 @@ def read_entire_file(field_handler, headers={}):
     return headers, data_out
 
 
-def write_entire_file(fname, headers, data, numbl):
+def fluid_file_writer(fname, headers, data, numbl):
     with FF(fname, mode='w') as fout:
         for v in headers.values():
             fout.write_vector(np.asarray(v))
@@ -580,7 +583,6 @@ def write_entire_file(fname, headers, data, numbl):
         for ilvl in range(1, 1+nlevelmax):
             for icpu in range(1, ncpu+nboundaries+1):
                 ncache = numbl[ilvl-1, icpu-1]
-                print(f'Writing {ilvl}:{ncache} @ {ilvl}:{icpu}')
                 fout.write_vector(np.asarray([ilvl], dtype=np.int32))
                 fout.write_vector(np.asarray([ncache], dtype=np.int32))
                 if ncache > 0:
@@ -591,7 +593,7 @@ def write_entire_file(fname, headers, data, numbl):
                 ii += ncache
 
 
-def write_one_field_file(filename, amr_structure, headers, data_old):
+def write_fluid_file(filename, amr_structure, headers, data_old):
     ncpu_old = len(data_old)
 
     # Loop over AMR structure, and read relevant files
@@ -613,18 +615,18 @@ def write_one_field_file(filename, amr_structure, headers, data_old):
         data_new[..., new_file_ind] = data_old[icpu_old][..., file_ind]
 
     # Write file
-    write_entire_file(filename, headers, data_new, amr_structure['numbl'])
+    fluid_file_writer(filename, headers, data_new, amr_structure['numbl'])
 
 
-filename_mapping = {
+fluid_filename_mapping = {
     'gravity': 'grav_{iout:05d}.out{icpu:05d}',
     'ramses': 'hydro_{iout:05d}.out{icpu:05d}'
 }
 
-def rewrite(amr_structure, domains, base_out='output_00080/'):
+def rewrite_fluid_files(amr_structure, domains, base_out='output_00080/'):
     nkind = len(domains[0].field_handlers)
     ncpu_new = len(amr_structure)
-    filenames = [filename_mapping[fh.ftype] for fh in domains[0].field_handlers]
+    filenames = [fluid_filename_mapping[fh.ftype] for fh in domains[0].field_handlers]
 
     progress = tqdm(total=nkind)
     for i in range(nkind):
@@ -634,7 +636,7 @@ def rewrite(amr_structure, domains, base_out='output_00080/'):
         headers = {}
         for icpu, dom in enumerate(tqdm(domains, desc='Reading files', leave=False)):
             fh = dom.field_handlers[i]
-            ret = read_entire_file(fh, default_headers[ftype].copy())
+            ret = fluid_file_reader(fh, default_headers[ftype].copy())
             headers, data_orig[icpu+1] = ret
 
         # Need to update the number of cpus in the headers
@@ -643,18 +645,101 @@ def rewrite(amr_structure, domains, base_out='output_00080/'):
         progress.set_description(f'{ftype}: W')
         for icpu in amr_structure.keys():
             fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
-            write_one_field_file(fname, amr_structure[icpu], headers, data_old=data_orig)
+            write_fluid_file(fname, amr_structure[icpu], headers, data_old=data_orig)
         progress.update(1)
 
 
-rewrite(new_data, ds.index.domains)
+rewrite_fluid_files(new_data, ds.index.domains)
 
 
 # %%
-amr_struct
+from yt.frontends.ramses.particle_handlers import ParticleFileHandler
 
-# %%
-# %debug
+particle_filename_mapping = {
+    'io': 'particle_{iout:05d}.out{icpu:05d}',
+}
+
+def particle_file_reader(
+        particle_handler: ParticleFileHandler,
+        headers: dict = {}
+    ) -> dict:
+
+    data_out = {}
+    with FF(particle_handler.fname, 'r') as fin:
+        headers.update(fin.read_attrs(particle_handler.attrs))
+        npart = headers['npart']
+
+        for k, dtype in particle_handler.field_types.items():
+            data_out[k] = fin.read_vector(dtype)
+            assert data_out[k].size == npart
+
+    return headers, data_out
+
+def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu):
+    # Count number of particles
+    npart = 0
+    masks = {}
+    for icpu_old, part_dom in particle_new_domain.items():
+        mask = (part_dom == new_icpu)
+        masks[icpu_old] = mask
+        
+        npart += mask.sum()
+        
+    # Extract fields
+    fields = data_old[1].keys()
+        
+    with FF(fname, mode='w') as fout:
+        h = headers.copy()
+        h['npart'] = npart
+        # TODO: nstar, nstar_tot, etc.
+        
+        # Write headers
+        for v in h.values():
+            fout.write_vector(np.asarray(v))
+
+        # Write fields
+        for field in fields:
+            vals = np.empty(npart, dtype=data_old[1][field].dtype)
+
+            i0 = 0
+            for mask, dt in zip(masks.values(), data_old.values()):
+                count = mask.sum()
+                vals[i0:i0+count] = dt[field][mask]
+                i0 += count
+
+            fout.write_vector(vals)
+        
+
+def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
+    nkind = len(domains[0].particle_handlers)
+    ncpu_new = len(amr_structure)
+    filenames = [particle_filename_mapping[fh.ptype] for fh in domains[0].particle_handlers]
+
+    progress = tqdm(total=nkind)
+    for i in range(nkind):
+        ptype = domains[0].particle_handlers[i].ptype
+        progress.set_description(f'{ptype}: R')
+        data_orig = {}
+        particle_new_domain = {}
+        headers = {}
+        for icpu, dom in enumerate(tqdm(domains, desc='Reading files', leave=False)):
+            fh = dom.particle_handlers[i]
+            ret = particle_file_reader(fh, {})
+            headers, data_orig[icpu+1] = ret
+            pos =  np.stack([ret[1]['io', 'particle_position_%s' % k] for k in 'xyz'], axis=-1)
+            ipos = np.round(pos * bscale).astype(np.int64)
+            particle_new_domain[icpu+1] = np.digitize(hilbert3d(ipos, bit_length), amr_structure[1]['bound_keys'])
+
+        # Need to update the number of cpus in the headers
+        headers['ncpu'] = ncpu_new
+        
+        progress.set_description(f'{ptype}: W')
+        for icpu in amr_structure.keys():
+            fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
+            particle_file_writer(fname, particle_new_domain, headers, data_old=data_orig, new_icpu=icpu)
+        progress.update(1)
+    return particle_new_domain
+toto = rewrite_particle_files(new_data, ds.index.domains)
 
 # %%
 import sys; sys.exit(0)
