@@ -28,7 +28,7 @@ import numpy as np
 import yt
 
 from yt.frontends.ramses.field_handlers import FieldFileHandler, GravFieldFileHandler, HydroFieldFileHandler
-from yt.frontends.ramses.particle_handlers import ParticleFileHandler
+from yt.frontends.ramses.particle_handlers import DefaultParticleFileHandler, ParticleFileHandler
 
 from scipy.interpolate import interp1d
 from tqdm.auto import tqdm
@@ -533,20 +533,8 @@ for l in new_data[1]['numbl']:
 # Now write hydro
 
 # %%
-# # %%cython -a
 
-# from yt.utilities.cython_fortran_utils cimport FortranFile as FF
-# cimport numpy as np
-# import numpy as np
-# cimport cython
-
-#@cython.wraparound(False)
-#@cython.boundscheck(False)
-# def read_entire_file(tuple headers_desc, np.float64_t[:, :, ::1] data_out, str fname):
-def fluid_file_reader(field_handler, headers={}):
-    #cdef FF fin
-    #cdef int nvar, nboundaries, nlevelmax, ncpu, ilvl, icpu, ilvl2, ncache, icell, ivar, ii
-
+def fluid_file_reader(field_handler: FieldFileHandler, headers: dict = {}):
     with FF(field_handler.fname, 'r') as fin:
         headers.update(fin.read_attrs(field_handler.attrs))
         nvar = headers['nvar']
