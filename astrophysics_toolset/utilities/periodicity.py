@@ -1,7 +1,8 @@
 """Handle periodicity."""
 import numpy as np
-from .types import FloatArrayType
+
 from .decorators import spatial
+from .types import FloatArrayType
 
 
 @spatial
@@ -25,8 +26,9 @@ def wrap_coordinates(x: FloatArrayType, w: float = 1) -> FloatArrayType:
 
 
 @spatial
-def distance_to_center(x: FloatArrayType, w: float = 1,
-                       return_center: bool = False) -> FloatArrayType:
+def distance_to_center(
+    x: FloatArrayType, w: float = 1, return_center: bool = False
+) -> FloatArrayType:
     """Compute the distance to the barycenter, taking into account periodicity.
 
     Parameters:

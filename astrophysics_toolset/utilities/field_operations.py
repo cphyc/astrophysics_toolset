@@ -1,8 +1,8 @@
 """Perform operations on n-dimensional fields."""
 
 import numpy as np
-
 from scipy.special import spherical_jn
+
 from .funcs import j1_over_x
 
 

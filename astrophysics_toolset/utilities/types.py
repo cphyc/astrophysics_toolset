@@ -1,7 +1,7 @@
 """Types used throughout the project"""
 
-from typing import Union, Any
 import pathlib
+from typing import Any, Union
 
 PathType = Union[str, pathlib.Path]
 IntArrayType = Any  # np.ndarray[int]
