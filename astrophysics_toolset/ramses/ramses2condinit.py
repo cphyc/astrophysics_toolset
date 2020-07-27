@@ -27,7 +27,7 @@ from yt.frontends.ramses.definitions import ramses_header
 import numpy as np
 import yt
 
-from yt.frontends.ramses.field_handlers import FieldFileHandler
+from yt.frontends.ramses.field_handlers import FieldFileHandler, GravFieldFileHandler, HydroFieldFileHandler
 from yt.frontends.ramses.particle_handlers import ParticleFileHandler
 
 from scipy.interpolate import interp1d
@@ -572,8 +572,10 @@ def fluid_file_reader(field_handler, headers={}):
 
 def fluid_file_writer(fname, headers, data, numbl):
     with FF(fname, mode='w') as fout:
-        for v in headers.values():
-            fout.write_vector(np.asarray(v))
+        for key, _len, dtype in headers['_structure']:
+            tmp = np.atleast_1d(headers[key]).astype(dtype)
+            assert len(tmp) == _len
+            fout.write_vector(tmp)
         nvar = headers['nvar']
         nboundaries = headers['nboundary']
         nlevelmax = headers['nlevelmax']
@@ -618,16 +620,19 @@ def write_fluid_file(filename, amr_structure, headers, data_old):
     # Write file
     fluid_file_writer(filename, headers, data_new, amr_structure['numbl'])
 
+
 class FluidFileAttrs:
     fname_pattern = None
 
 
-class GravityFluidFileAttrs(FluidFileAttrs):
+class GravityFluidFileAttrs(FluidFileAttrs, GravFieldFileHandler):
     fname_pattern = 'grav_{iout:05d}.out{icpu:05d}'
+    ftype = None  # prevent yt from using this to detect files
 
 
-class HydroFluidFileAttrs(FluidFileAttrs):
+class HydroFluidFileAttrs(FluidFileAttrs, HydroFieldFileHandler):
     fname_pattern = 'hydro_{iout:05d}.out{icpu:05d}'
+    ftype = None  # prevent yt from using this to detect files
 
 
 fluid_descs = {
@@ -654,6 +659,8 @@ def rewrite_fluid_files(amr_structure, domains, base_out='output_00080/'):
 
         # Need to update the number of cpus in the headers
         headers['ncpu'] = ncpu_new
+
+        headers['_structure'] = fdesc.attrs
 
         progress.set_description(f'{ftype}: W')
         for icpu in tqdm(amr_structure.keys(), desc='Writing files', leave=False):
