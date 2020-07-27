@@ -1,3 +1,4 @@
+#!/home/ccc/anaconda3/bin/python
 # -*- coding: utf-8 -*-
 # ---
 # jupyter:
@@ -20,15 +21,24 @@
 # %%
 from glob import glob
 import os
-# from yt.utilities.cython_fortran_utils import FortranFile as FF
+import shutil
 from cython_fortran_file import FortranFile as FF
+import sys
 
 from yt.frontends.ramses.definitions import ramses_header
 import numpy as np
 import yt
 
-from yt.frontends.ramses.field_handlers import FieldFileHandler, GravFieldFileHandler, HydroFieldFileHandler
-from yt.frontends.ramses.particle_handlers import DefaultParticleFileHandler, ParticleFileHandler
+from yt.frontends.ramses.field_handlers import (
+    FieldFileHandler,
+    GravFieldFileHandler,
+    HydroFieldFileHandler
+)
+from yt.frontends.ramses.particle_handlers import (
+    DefaultParticleFileHandler,
+    ParticleFileHandler
+)
+from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
 
 from scipy.interpolate import interp1d
 from tqdm.auto import tqdm
@@ -36,19 +46,61 @@ from tqdm.auto import tqdm
 from astrophysics_toolset.ramses.hilbert import hilbert3d
 from astrophysics_toolset.ramses.oct_handler import Octree
 
-# %%
-from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
+import argparse
 
+
+
+# %%
+parser = argparse.ArgumentParser()
+# parser.add_argument('--input', type=str, default='/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt',
+#     help='Input file'
+# )
+parser.add_argument('--input', default='output_00002/info_00002.txt')
+parser.add_argument('--output-dir', type=str, default='change_ncpu/new_output')
+parser.add_argument('--ncpu', type=int, default=4)
+parser.add_argument('--longint', action='store_true')
+parser.add_argument('--quadhilbert', action='store_true')
+
+if False:
+    from IPython import get_ipython
+    ipython = get_ipython()
+    ipython.magic('rm -rf /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/new_output/')
+    args = parser.parse_args([
+        '--input',
+        '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/output_00005/info_00005.txt',
+        '--output-dir',
+        '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/new_output/',
+        '--ncpu', '8'
+    ])
+else:
+    args = parser.parse_args()
+
+input_dir = os.path.abspath(os.path.split(args.input)[0])
+output_dir = os.path.abspath(args.output_dir)
+if input_dir == output_dir or os.path.exists(args.output_dir):
+    raise Exception(
+        ('Either the destination folder already exists (%s) or '
+         'you are trying to write new files in the same folder as the old one (%s).\n'
+         'Either way, I am Refusing to do that.\n\n\n'
+         'Sorry.') % (output_dir, input_dir)
+    )
+
+# Making output dir
+_iout = int(os.path.split(args.input)[1].split('.txt')[0].split('_')[1])
+CONFIG = dict(
+    new_ncpu=args.ncpu,
+    iout=_iout
+)
+
+# %%
 ipos = np.random.randint(0, 2**9, size=(2000, 3))
 
-print(ipos)
 a = hilbert3d(ipos, 10)
 b = hilbert3d_yt(ipos, 10)
 np.testing.assert_allclose(a, b)
 
 # %%
-ds = yt.load('/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt')
-LONGINT, QUADHILBERT = True, False
+ds = yt.load(args.input)
 default_headers = {
     'ramses': {},
     'gravity': {'nvar': 4}
@@ -61,12 +113,9 @@ default_headers = {
 #     'gravity': {'nvar': 3}
 # }
 
-new_ncpu = 4
-
-
 
 # %%
-def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
+def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
     i8b = 'l' if longint else 'i'
     qdp = 'float128' if quadhilbert else 'float64'
     dp = 'float64'
@@ -80,7 +129,13 @@ def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
         headl = f.read_vector('i').reshape(shape)
         taill = f.read_vector('i').reshape(shape)
         numbl = f.read_vector('i').reshape(shape)
-        numbtot = f.read_vector(i8b).reshape((10, headers['nlevelmax']))
+        try:
+            numbtot = f.read_vector(i8b).reshape((10, headers['nlevelmax']))
+        except ValueError as e:
+            raise Exception(
+                'Caught an exception while reading numbtot. This is likely due '
+                'to you forgetting to (un)set the longint flag!\n'
+                'Try calling the script with/out `--longint`.')
 
         # Free memory
         headf, tailf, numbf, used_mem, used_mem_tot = f.read_vector('i')
@@ -90,29 +145,38 @@ def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
         ndomain = headers['ncpu'] * 1
         if ordering != 'hilbert':
             raise NotImplementedError
-        bound_keys = f.read_vector(qdp).reshape(ndomain + 1)
+        try:
+            bound_keys = f.read_vector(qdp).reshape(ndomain + 1)
+        except ValueError as e:
+            raise Exception(
+                'Caught an exception while reading hilbert keys. This is likely due '
+                'to you forgetting to (un)set the quadhibert flag!\n'
+                'Try calling the script with/out `--quadhilbert`.')
 
-        # Coarse levels  # should be of length 1 unless there are non-periodic boundaries
-        ncoarse = 1
-        son = f.read_vector('i').reshape(ncoarse)
-        refmap = f.read_vector('i').reshape(ncoarse)
-        cpu_map = f.read_vector('i').reshape(ncoarse)
+        nlevelmax, nboundary, ncpu, ndim, ngridmax = (
+            headers[k] for k in ('nlevelmax', 'nboundary', 'ncpu', 'ndim', 'ngridmax')
+        )
 
-        ret = {'headers': headers}
-        for k in ('headl taill numbl numbtot bound_keys son refmap cpu_map').split():
-            v = eval(k)
-            ret[k] = v
-
-
-        # Fine levels
-        nlevelmax, nboundary, ncpu, ndim, ngridmax = (headers[k] for k in ('nlevelmax', 'nboundary', 'ncpu', 'ndim', 'ngridmax'))
-
+        # Allocate memory
         _level, _ndom, ind_grid, next, prev, parent = (np.zeros(ngridmax, dtype='i') for _ in range(6))
         _level_cell = np.zeros((ngridmax, 8), dtype='i')
         xc = np.zeros((ngridmax, ndim), dtype='d')
         nbor = np.zeros((ngridmax, 2*ndim), dtype='i')
         son, cpu_map, refmap = (np.zeros((ngridmax, 2**ndim), dtype='i') for _ in range(3))
 
+        # Coarse levels 
+        # should be of length 1 unless there are non-periodic boundaries
+        ncoarse = 1
+        coarse_son = f.read_vector('i').reshape(ncoarse)
+        coarse_refmap = f.read_vector('i').reshape(ncoarse)
+        coarse_cpu_map = f.read_vector('i').reshape(ncoarse)
+
+        ret = {'headers': headers}
+        for k in ('headl taill numbl numbtot bound_keys son refmap cpu_map').split():
+            v = eval(k)
+            ret[k] = v
+
+        # Fine levels
         i = 0
         for ilevel in range(nlevelmax):
             for ibound in range(nboundary+ncpu):
@@ -143,15 +207,37 @@ def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
                     _ndom[i:i+ncache]   = ibound + 1  # Fortran is 1-indexed
                     i += ncache
 
-        ind_grid, next, prev, xc, parent, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom = \
-            (_[:i] for _ in (ind_grid, next, prev, xc, parent, nbor, son, cpu_map, refmap, _level, _level_cell, _ndom))
+        (ind_grid, next, prev, xc, parent,
+         nbor, son, cpu_map, refmap,
+         _level, _level_cell, _ndom
+        ) = (_[:i] for _ in 
+         (ind_grid, next, prev, xc, parent,
+          nbor, son, cpu_map, refmap,
+          _level, _level_cell, _ndom)
+        )
 
-        ret.update(dict(ind_grid=ind_grid, next=next, prev=prev, xc=xc, parent=parent, nbor=nbor, son=son,
-                        cpu_map=cpu_map, refmap=refmap, _level=_level, _level_cell=_level_cell, _ndom=_ndom))
+        ret.update(dict(
+            ind_grid=ind_grid,
+            next=next,
+            prev=prev,
+            xc=xc,
+            parent=parent,
+            nbor=nbor,
+            son=son,
+            cpu_map=cpu_map,
+            refmap=refmap,
+            coarse_refmap=coarse_refmap,
+            coarse_cpu_map=coarse_cpu_map,
+            coarse_son=coarse_son,
+            _level=_level,
+            _level_cell=_level_cell,
+            _ndom=_ndom)
+        )
 
         return ret
 
-def read_all_amr_files(dirname : str):
+
+def read_all_amr_files(dirname: str):
     pattern = os.path.join(dirname, 'amr_?????.out?????')
     amr_files = sorted(glob(pattern))
 
@@ -246,26 +332,16 @@ for icpu, dt in data.items():
 bound_key_orig = interp1d(np.arange(dt['headers']['ncpu']+1), dt['bound_keys'])
 
 old_ncpu = dt['headers']['ncpu']
-new_bound_keys = bound_key_orig(np.linspace(0, dt['headers']['ncpu'], new_ncpu+1))
+new_bound_keys = bound_key_orig(np.linspace(
+    0,
+    dt['headers']['ncpu'],
+    CONFIG['new_ncpu']+1)
+)
 
 cpu_map_new = np.digitize(hilbert_keys_glob, new_bound_keys)
 
 # %%
-# # Add cells to oct
-# oct = Octree(nlevelmax)
-
-# N2 = 8
-# for icpu, dt in tqdm(data.items()):
-#     ipos = dt['_ixcell'].reshape(-1, 3)
-#     file_ind = (dt['ind_grid'].astype(np.int64)[:, None] + np.arange(8)[None, :]*ngridmax + ncoarse).reshape(-1)
-#     domain_ind = dt['cpu_map'].flatten().astype(np.int64)
-#     new_domain_ind = np.digitize(dt['_hilbert_key'], new_bound_keys)
-#     lvl_ind = (dt['_level'].astype(np.int64)[:, None] + np.zeros(8, dtype=np.int64)[None, :]).reshape(-1)
-
-#     N2 += oct.add(ipos, file_ind, domain_ind, new_domain_ind, dt['_hilbert_key'], lvl_ind)
-
-# %%
-oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=new_ncpu)
+oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG['new_ncpu'])
 N2 = 1
 for icpu, dt in tqdm(data.items()):
     mask = dt['_level'] <= 99999
@@ -291,11 +367,11 @@ dx_neigh0 = np.array([[-1, 1,  0, 0,  0, 0],
                       [ 0, 0,  0, 0, -1, 1]]).T[None, :, :]
 
 
-for icpu, dt in tqdm(data.items()):
-    lvl = dt['_level'].astype(int)
-    xc = dt['xc']
+def set_neighbours(icpu, dt):
+    lvl = dt['_level'].astype(int)[1:]
+    xc = dt['xc'][1:]
     dx = 1/2**(lvl-1)
-    xc_neigh = (xc[:, None, :] + dx_neigh0 * dx[:, None, None]) % 1
+    xc_neigh = (xc[1:, None, :] + dx_neigh0 * dx[1:, None, None]) % 1
 
     ixc = (xc * bscale).astype(int).copy()
     ixc_neigh = (xc_neigh * bscale).astype(int).copy()
@@ -303,15 +379,17 @@ for icpu, dt in tqdm(data.items()):
     # Set neighbours for all octs that do have a child
     oct.set_neighbours(ixc, ixc_neigh, lvl)
 
+
+for icpu, dt in tqdm(data.items(), desc='Setting neighbours'):
+    set_neighbours(icpu, dt)
+
 # %%
 oct.print_tree(3, print_neighbours=True)
 
 # %%
-LONGINT = False
-QUADHILBERT = False
 
-QUADHILBERT = 'float128' if QUADHILBERT else 'float64'
-LONGINT = 'int64' if LONGINT else 'int32'
+QUADHILBERT = 'float128' if args.quadhilbert else 'float64'
+LONGINT = 'int64' if args.longint else 'int32'
 
 _HEADERS = (
     ('ncpu', 'i'),
@@ -347,7 +425,7 @@ _AMR_STRUCT = (
 )
 
 
-def write_amr_file(headers, amr_struct, amr_file, original_files, original_offsets):
+def write_amr_file(headers, amr_struct, amr_file):
     """This write the new amr files
 
     Parameters
@@ -390,9 +468,13 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
     cpu_map = amr_struct['cpu_map']
     print('Coarse level')
     ncoarse = np.product(headers['nx'])
-    f.write_vector(son[:ncoarse])
-    f.write_vector(refmap[:ncoarse])
-    f.write_vector(cpu_map[:ncoarse])
+    # NOTE: since son has shape (ncoarse + ngridmax*8, we only need to write cell 0
+    #       of coarse level (i.e. root oct)
+    f.write_vector(amr_struct['coarse_son'].astype(np.int32))
+    f.write_vector(amr_struct['coarse_refmap'].astype(np.int32))
+    cpu_map_coarse = np.argwhere(numbl[0] == 1).astype(np.int32).flatten()+1
+    assert cpu_map_coarse.size == 1
+    f.write_vector(cpu_map_coarse)
 
     print('Fine levels')
     nlevelmax = headers['nlevelmax']
@@ -401,7 +483,7 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
     if nboundary > 0:
         raise NotImplementedError
 
-    ii = 0 # ncoarse
+    ii = 0
     ncache = 0
     def write_chunk(key, extra_slice=...):
         f.write_vector(np.ascontiguousarray(amr_struct[key][ii:ii+ncache, extra_slice]))
@@ -425,6 +507,7 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
             for idim in range(2**3):
                 write_chunk('son', idim)
             for idim in range(2**3):
+                assert np.all(amr_struct['cpu_map'][ii:ii+ncache, idim] > 0)
                 write_chunk('cpu_map', idim)
             for idim in range(2**3):
                 write_chunk('refmap', idim)
@@ -434,7 +517,7 @@ def write_amr_file(headers, amr_struct, amr_file, original_files, original_offse
 
 # %%
 new_data = {}
-for new_icpu in range(1, new_ncpu+1):
+for new_icpu in range(1, CONFIG['new_ncpu']+1):
     bk_low = new_bound_keys[new_icpu-1]
     bk_up = new_bound_keys[new_icpu]
 
@@ -442,26 +525,26 @@ for new_icpu in range(1, new_ncpu+1):
 
     oct.clear_paint()
 
-    # Select cells that intersect with domain
-    for icpu, dt in data.items():
-        lvl = dt['_level_cell'].astype(np.uint8).flatten()
-        hkg = dt['_hilbert_key'].astype(np.uint64)
+#     # Select cells that intersect with domain
+#     for icpu, dt in data.items():
+#         lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
+#         hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8]
 
-        ishift = 3*(bit_length-lvl+1)
-        order_min = (hkg >> ishift)
-        order_max = (order_min + 1) << ishift
-        order_min <<= ishift
+#         ishift = 3*(bit_length-lvl+1)
+#         order_min = (hkg >> ishift)
+#         order_max = (order_min + 1) << ishift
+#         order_min <<= ishift
 
-        mask = (order_max > bk_low) & (order_min < bk_up)
+#         mask = (order_max > bk_low) & (order_min < bk_up)
 
-        oct.select(dt['_ixcell'].reshape(-1, 3)[mask],
-                  lvl[mask].astype(np.int64))
+#         oct.select(dt['_ixcell'][1:].reshape(-1, 3)[mask],
+#                    lvl[mask].astype(np.int64))
 
     ###########################################################
     # Headers
     dt = data[1]
     headers = dt['headers'].copy()
-    headers['ncpu'] = new_ncpu
+    headers['ncpu'] = CONFIG['new_ncpu']
 
     ###########################################################
     # Amr structure
@@ -473,6 +556,8 @@ for new_icpu in range(1, new_ncpu+1):
     amr_struct['numbtot'] = dt['numbtot']
     amr_struct[('headf', 'tailf', 'numbf', 'used_mem', 'used_mem_tot')] = 0, 0, 0, 0, 0
     amr_struct['ordering'] = 'hilbert'
+    amr_struct['coarse_son'] = dt['coarse_son']
+    amr_struct['coarse_refmap'] = dt['coarse_refmap']
 
     def pair2icell(v):
         # Compute cell indices from parent oct + icell
@@ -505,13 +590,20 @@ for new_icpu in range(1, new_ncpu+1):
     for k, v in data_out.items():
         amr_struct[k] = v
 
+    # Make sure ngridmax is large enough
+    if nocts > headers['ngridmax']:
+        raise RuntimeError(
+            'ERROR: you need to increase ngridmax to at least %s!' % nocts
+        )
+
     # Write AMR file
-    base = 'output_00080'
+    base = args.output_dir
     os.makedirs(base, exist_ok=True)
-    amr_file = os.path.join(base, f'amr_00001.out{new_icpu:05d}')
+    iout = CONFIG['iout']
+    amr_file = os.path.join(base, f'amr_{iout:05d}.out{new_icpu:05d}')
 
     tmp = amr_struct
-    write_amr_file(headers, tmp, amr_file, None, None)
+    write_amr_file(headers, tmp, amr_file)
 
 # %%
 print(' old structure '.center(120, '='))
@@ -529,11 +621,11 @@ for l in new_data[1]['numbl']:
     print('| %s' % l.sum())
 
 
+
 # %% [markdown]
 # Now write hydro
 
 # %%
-
 def fluid_file_reader(field_handler: FieldFileHandler, headers: dict = {}):
     with FF(field_handler.fname, 'r') as fin:
         headers.update(fin.read_attrs(field_handler.attrs))
@@ -547,7 +639,7 @@ def fluid_file_reader(field_handler: FieldFileHandler, headers: dict = {}):
         ii = 0
         for ilvl in range(nlevelmax):
             for icpu in range(ncpu+nboundaries):
-                ilvl2 = fin.read_int()
+                fin.read_int()  # ilvl2
                 ncache = fin.read_int()
                 if ncache > 0:
                     for icell in range(8):
@@ -628,7 +720,7 @@ fluid_descs = {
 }
 
 
-def rewrite_fluid_files(amr_structure, domains, base_out='output_00080/'):
+def rewrite_fluid_files(amr_structure, domains, output_dir, iout):
     nkind = len(domains[0].field_handlers)
     ncpu_new = len(amr_structure)
     all_fdescs = [fluid_descs[fh.ftype] for fh in domains[0].field_handlers]
@@ -651,12 +743,16 @@ def rewrite_fluid_files(amr_structure, domains, base_out='output_00080/'):
 
         progress.set_description(f'{ftype}: W')
         for icpu in tqdm(amr_structure.keys(), desc='Writing files', leave=False):
-            fname = os.path.join(base_out, fdesc.fname_pattern.format(iout=1, icpu=icpu))
+            fname = os.path.join(
+                output_dir, fdesc.fname_pattern.format(iout=iout, icpu=icpu)
+            )
             write_fluid_file(fname, amr_structure[icpu], headers, data_old=data_orig)
         progress.update(1)
 
-
-rewrite_fluid_files(new_data, ds.index.domains)
+rewrite_fluid_files(
+    new_data, ds.index.domains,
+    output_dir=args.output_dir, iout=CONFIG['iout']
+)
 
 
 # %%
@@ -713,7 +809,7 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
         # Write headers
         for key, _len, dtype in headers['_structure']:
             tmp = np.atleast_1d(headers[key]).astype(dtype)
-            assert len(tmp) == _len
+            assert (len(tmp) == _len) or (_len == -1)
             fout.write_vector(tmp)
 
         # Write fields
@@ -729,7 +825,7 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
             fout.write_vector(vals)
 
 
-def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
+def rewrite_particle_files(amr_structure, domains, output_dir, iout):
     nkind = len(domains[0].particle_handlers)
     ncpu_new = len(amr_structure)
     all_pdescs = [particle_descs[fh.ptype] for fh in domains[0].particle_handlers]
@@ -762,8 +858,8 @@ def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
         progress.set_description(f'{ptype}: W')
         for icpu in tqdm(amr_structure.keys(), desc='Writing files', leave=False):
             fname = os.path.join(
-                base_out,
-                pdesc.fname_pattern.format(iout=1, icpu=icpu)
+                output_dir,
+                pdesc.fname_pattern.format(iout=iout, icpu=icpu)
             )
             particle_file_writer(
                 fname,
@@ -775,14 +871,123 @@ def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
         progress.update(1)
 
 
-rewrite_particle_files(new_data, ds.index.domains)
+rewrite_particle_files(
+    new_data, ds.index.domains,
+    output_dir=args.output_dir, iout=CONFIG['iout']
+)
 
 
 # %%
+# Final touch: copy namelist, file descriptors and info
+def copy_meta(input_info_file, output_dir, bound_key, new_ncpu):
+    input_dir, input_info_fname = os.path.split(input_info_file)
+    output_info_file = os.path.join(output_dir, input_info_fname)
 
+    # Rewrite "info_XXXXX.txt"
+    with open(input_info_file, 'r') as fin:
+        lines = fin.readlines()
+    with open(output_info_file, 'w') as fout:
+        line = lines.pop(0)
+        while not line.strip().startswith('DOMAIN   ind_min'):
+            if 'ncpu' in line:
+                line = 'ncpu        = %10d\n' % new_ncpu
+            fout.write(line)
+            line = lines.pop(0)
+
+        # Write hilbert keys
+        fout.write('   DOMAIN   ind_min                 ind_max\n')
+        for icpu in range(1, new_ncpu+1):
+            s = f'{icpu:8d}   {bound_key[icpu-1]:.15E}   {bound_key[icpu]:.15E}\n'
+            fout.write(s)
+
+    # Copy file descriptors, header & namelist
+    tgt_files = glob(os.path.join(input_dir, '*file_descriptor.txt'))
+    tgt_files += glob(os.path.join(input_dir, 'header_?????.txt'))
+    tgt_files += glob(os.path.join(input_dir, 'namelist.txt'))
+    for f_in in tgt_files:
+        f_out = os.path.join(output_dir, os.path.split(f_in)[1])
+        shutil.copy(f_in, f_out)
+
+
+copy_meta(args.input, args.output_dir, new_bound_keys, CONFIG['new_ncpu'])
+
+import sys; sys.exit(0)
+# %%
+
+yt.funcs.mylog.setLevel(40)
 # Test reading with yt as a weak test
-dsn = yt.load('output_00080/info_00001.txt')
-dsn.r['io', 'particle_mass']
+ds_original = yt.load(args.input)
+ds_new = yt.load(os.path.join(args.output_dir, 'info_%05d.txt' % CONFIG['iout']))
+
+data = {}
+os.makedirs('/tmp/frames/', exist_ok=True)
+for ds, prefix in reversed(list(zip((ds_new, ds_original, ds_new), ('new', 'ref')))):
+    print(f'Prefix = {prefix}')
+    for d in 'xyz':
+        p = yt.ProjectionPlot(ds, d, 'density')
+        p.save(f'/tmp/frames/{d}_{prefix}')
+
+for ds, prefix in zip((ds_original, ds_new), ('ref', 'new')):
+    for d in 'xyz':
+        p = yt.ProjectionPlot(ds, d, 'DM_cic')
+        p.save(f'/tmp/frames/{d}_{prefix}')
+
+# %%
+# Compare gas cells
+order = {}
+
+ad_new = ds_new.all_data()
+ad_ref = ds_original.all_data()
+
+for ad, prefix in reversed(list(zip((ad_new, ad_ref), ('new', 'ref')))):
+    order[prefix] = np.argsort(ad['index', 'morton_index'])
+    
+def extract_field(ad, field_name, order):
+    return ad[field_name][order]
+
+for field in 'Density Pressure Metallicity'.split() + [f'{k}-velocity' for k in 'xyz'] + [_ for _ in 'xyz']:
+    print('Checking %s' % field, end='... ')
+    vnew = extract_field(ad_new, field, order['new'])
+    vref = extract_field(ad_ref, field, order['ref'])
+
+    np.testing.assert_allclose(vnew, vref)
+    print('ok!')
+
+# %%
+# Compare gas cells
+order = {}
+
+ad_new = ds_new.all_data()
+ad_ref = ds_original.all_data()
+
+for ad, prefix in reversed(list(zip((ad_new, ad_ref), ('new', 'ref')))):
+    order[prefix] = np.argsort(ad['io', 'particle_identity'])
+    
+def extract_field(ad, field_name, order):
+    return ad[field_name][order]
+
+for field in (('DM', f'particle_{suffix}') for suffix in 'mass position velocity family tag'.split()):
+    print('Checking %s, %s' % field, end='... ')
+    vnew = extract_field(ad_new, field, order['new'])
+    vref = extract_field(ad_ref, field, order['ref'])
+
+    np.testing.assert_allclose(vnew, vref)
+    print('ok!')
+
+# %%
+ad_new['DM', 'particle_position'][order['new']]
+
+# %%
+ad_ref['DM', 'particle_position'][order['ref']]
+
+# %%
+# cat /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/output_00005/part_file_descriptor.txt
+
+# %%
+np.unique(ad_new['DM', 'particle_identity'], return_counts=True)
+
+# %%
+np.unique(ad_ref['DM', 'particle_identity'], return_counts=True)
 
 # %%
 import sys; sys.exit(0)
