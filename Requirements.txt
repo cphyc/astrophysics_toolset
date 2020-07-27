@@ -2,3 +2,5 @@ scipy>=1.4.1
 numpy>=1.0
 kaitaistruct>=0.8
 numba>=0.40
+yt>=3.6
+cython-fortran-file>=0.2.1
