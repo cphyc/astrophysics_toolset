@@ -660,9 +660,20 @@ rewrite_fluid_files(new_data, ds.index.domains)
 
 
 # %%
+class ParticleFileAttrs(DefaultParticleFileHandler):
+    fname_pattern = 'part_{iout:05d}.out{icpu:05d}'
+    ptype = None  # prevent yt from using this to detect files
+
+
+particle_descs = {
+    'io': ParticleFileAttrs,
+}
+
+
 particle_filename_mapping = {
     'io': 'part_{iout:05d}.out{icpu:05d}',
 }
+
 
 def particle_file_reader(
         particle_handler: ParticleFileHandler,
@@ -679,6 +690,7 @@ def particle_file_reader(
             assert data_out[k].size == npart
 
     return headers, data_out
+
 
 def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu):
     # Count number of particles
@@ -699,12 +711,10 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
         # TODO: nstar, nstar_tot, etc.
 
         # Write headers
-        for v in h.values():
-            if isinstance(v, int):
-                dtype = np.int32
-            elif isinstance(v, float):
-                dtype = np.float64
-            fout.write_vector(np.asarray(v, dtype=dtype))
+        for key, _len, dtype in headers['_structure']:
+            tmp = np.atleast_1d(headers[key]).astype(dtype)
+            assert len(tmp) == _len
+            fout.write_vector(tmp)
 
         # Write fields
         for field in fields:
@@ -722,10 +732,10 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
     nkind = len(domains[0].particle_handlers)
     ncpu_new = len(amr_structure)
-    filenames = [particle_filename_mapping[fh.ptype] for fh in domains[0].particle_handlers]
+    all_pdescs = [particle_descs[fh.ptype] for fh in domains[0].particle_handlers]
 
     progress = tqdm(total=nkind)
-    for i in range(nkind):
+    for i, pdesc in enumerate(all_pdescs):
         ptype = domains[0].particle_handlers[i].ptype
         progress.set_description(f'{ptype}: R')
         data_orig = {}
@@ -735,17 +745,33 @@ def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
             fh = dom.particle_handlers[i]
             ret = particle_file_reader(fh, {})
             headers, data_orig[icpu+1] = ret
-            pos =  np.stack([ret[1]['io', 'particle_position_%s' % k] for k in 'xyz'], axis=-1)
+            pos = np.stack(
+                [ret[1]['io', 'particle_position_%s' % k] for k in 'xyz'],
+                axis=-1
+            )
             ipos = np.round(pos * bscale).astype(np.int64)
-            particle_new_domain[icpu+1] = np.digitize(hilbert3d(ipos, bit_length), amr_structure[1]['bound_keys'])
+            particle_new_domain[icpu+1] = np.digitize(
+                hilbert3d(ipos, bit_length),
+                amr_structure[1]['bound_keys']
+            )
 
         # Need to update the number of cpus in the headers
         headers['ncpu'] = ncpu_new
+        headers['_structure'] = pdesc.attrs
 
         progress.set_description(f'{ptype}: W')
         for icpu in tqdm(amr_structure.keys(), desc='Writing files', leave=False):
-            fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
-            particle_file_writer(fname, particle_new_domain, headers, data_old=data_orig, new_icpu=icpu)
+            fname = os.path.join(
+                base_out,
+                pdesc.fname_pattern.format(iout=1, icpu=icpu)
+            )
+            particle_file_writer(
+                fname,
+                particle_new_domain,
+                headers,
+                data_old=data_orig,
+                new_icpu=icpu
+            )
         progress.update(1)
 
 
