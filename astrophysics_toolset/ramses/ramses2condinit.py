@@ -27,6 +27,9 @@ from yt.frontends.ramses.definitions import ramses_header
 import numpy as np
 import yt
 
+from yt.frontends.ramses.field_handlers import FieldFileHandler
+from yt.frontends.ramses.particle_handlers import ParticleFileHandler
+
 from scipy.interpolate import interp1d
 from tqdm.auto import tqdm
 
@@ -60,8 +63,6 @@ default_headers = {
 
 new_ncpu = 4
 
-# %%
-dsn = yt.load('output_00080/info_00001.txt')
 
 
 # %%
@@ -617,19 +618,31 @@ def write_fluid_file(filename, amr_structure, headers, data_old):
     # Write file
     fluid_file_writer(filename, headers, data_new, amr_structure['numbl'])
 
+class FluidFileAttrs:
+    fname_pattern = None
 
-fluid_filename_mapping = {
-    'gravity': 'grav_{iout:05d}.out{icpu:05d}',
-    'ramses': 'hydro_{iout:05d}.out{icpu:05d}'
+
+class GravityFluidFileAttrs(FluidFileAttrs):
+    fname_pattern = 'grav_{iout:05d}.out{icpu:05d}'
+
+
+class HydroFluidFileAttrs(FluidFileAttrs):
+    fname_pattern = 'hydro_{iout:05d}.out{icpu:05d}'
+
+
+fluid_descs = {
+    'gravity': GravityFluidFileAttrs,
+    'ramses': HydroFluidFileAttrs
 }
+
 
 def rewrite_fluid_files(amr_structure, domains, base_out='output_00080/'):
     nkind = len(domains[0].field_handlers)
     ncpu_new = len(amr_structure)
-    filenames = [fluid_filename_mapping[fh.ftype] for fh in domains[0].field_handlers]
+    all_fdescs = [fluid_descs[fh.ftype] for fh in domains[0].field_handlers]
 
     progress = tqdm(total=nkind)
-    for i in range(nkind):
+    for i, fdesc in enumerate(all_fdescs):
         ftype = domains[0].field_handlers[i].ftype
         progress.set_description(f'{ftype}: R')
         data_orig = {}
@@ -643,8 +656,8 @@ def rewrite_fluid_files(amr_structure, domains, base_out='output_00080/'):
         headers['ncpu'] = ncpu_new
 
         progress.set_description(f'{ftype}: W')
-        for icpu in amr_structure.keys():
-            fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
+        for icpu in tqdm(amr_structure.keys(), desc='Writing files', leave=False):
+            fname = os.path.join(base_out, fdesc.fname_pattern.format(iout=1, icpu=icpu))
             write_fluid_file(fname, amr_structure[icpu], headers, data_old=data_orig)
         progress.update(1)
 
@@ -653,10 +666,8 @@ rewrite_fluid_files(new_data, ds.index.domains)
 
 
 # %%
-from yt.frontends.ramses.particle_handlers import ParticleFileHandler
-
 particle_filename_mapping = {
-    'io': 'particle_{iout:05d}.out{icpu:05d}',
+    'io': 'part_{iout:05d}.out{icpu:05d}',
 }
 
 def particle_file_reader(
@@ -682,20 +693,24 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
     for icpu_old, part_dom in particle_new_domain.items():
         mask = (part_dom == new_icpu)
         masks[icpu_old] = mask
-        
+
         npart += mask.sum()
-        
+
     # Extract fields
     fields = data_old[1].keys()
-        
+
     with FF(fname, mode='w') as fout:
         h = headers.copy()
         h['npart'] = npart
         # TODO: nstar, nstar_tot, etc.
-        
+
         # Write headers
         for v in h.values():
-            fout.write_vector(np.asarray(v))
+            if isinstance(v, int):
+                dtype = np.int32
+            elif isinstance(v, float):
+                dtype = np.float64
+            fout.write_vector(np.asarray(v, dtype=dtype))
 
         # Write fields
         for field in fields:
@@ -708,7 +723,7 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
                 i0 += count
 
             fout.write_vector(vals)
-        
+
 
 def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
     nkind = len(domains[0].particle_handlers)
@@ -732,14 +747,22 @@ def rewrite_particle_files(amr_structure, domains, base_out='output_00080/'):
 
         # Need to update the number of cpus in the headers
         headers['ncpu'] = ncpu_new
-        
+
         progress.set_description(f'{ptype}: W')
-        for icpu in amr_structure.keys():
+        for icpu in tqdm(amr_structure.keys(), desc='Writing files', leave=False):
             fname = os.path.join(base_out, filenames[i].format(iout=1, icpu=icpu))
             particle_file_writer(fname, particle_new_domain, headers, data_old=data_orig, new_icpu=icpu)
         progress.update(1)
-    return particle_new_domain
-toto = rewrite_particle_files(new_data, ds.index.domains)
+
+
+rewrite_particle_files(new_data, ds.index.domains)
+
+
+# %%
+
+# Test reading with yt as a weak test
+dsn = yt.load('output_00080/info_00001.txt')
+dsn.r['io', 'particle_mass']
 
 # %%
 import sys; sys.exit(0)
