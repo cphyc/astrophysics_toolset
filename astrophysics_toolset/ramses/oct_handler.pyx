@@ -821,14 +821,15 @@ cdef class Octree:
             self,
             int idomain,
             np.uint64_t bound_key_min,
-            np.uint64_t bound_key_max
+            np.uint64_t bound_key_max,
+            int nexpand=1
     ):
         '''Yield the file and domain indices sorted by level'''
         cdef AllOctsSelector all_octs = AllOctsSelector(self)
         cdef AllCellsSelector all_cells = AllCellsSelector(self)
         cdef FlaggedOctSelector selected_octs = FlaggedOctSelector(self)
         cdef FlaggedParentOctSelector selected_parent_octs = FlaggedParentOctSelector(self)
-        cdef int Noct, idim
+        cdef int Noct, idim, i
 
         # Mark all cells contained in an oct in the domain
         cdef MarkDomainVisitor mark_domain = MarkDomainVisitor(idomain)
@@ -839,12 +840,12 @@ cdef class Octree:
         # flag2: used as temp array
         cdef CountNeighbourFlaggedOctVisitor count_neigh = CountNeighbourFlaggedOctVisitor()
         cdef SetFlag2FromFlag1 copy_flag2_in_flag1 = SetFlag2FromFlag1()
-        for idim in range(3):
-            print('Expanding - pass %s' % idim)
-            count_neigh.n_neigh = idim + 1
-            all_octs.visit_all_octs(count_neigh)
-            all_octs.visit_all_octs(copy_flag2_in_flag1)
-
+        for i in range(nexpand):
+            for idim in range(3):
+                print('Expanding - pass %s:%s' % (i, idim))
+                count_neigh.n_neigh = idim + 1
+                all_octs.visit_all_octs(count_neigh)
+                all_octs.visit_all_octs(copy_flag2_in_flag1)
 
         # cdef CountNeighbourCellFlaggedVisitor count_neigh = CountNeighbourCellFlaggedVisitor()
         # cdef SetFlag2FromFlag1 copy_flag2_in_flag1 = SetFlag2FromFlag1()
@@ -898,7 +899,7 @@ cdef class Octree:
         # - lvl    : the level of the oct
 
         # We need now to reorder the domains in each lvl
-        cdef int ilvl, i, i0
+        cdef int ilvl, i0
         cdef np.int64_t[::1] order
         i0 = 0
         i = 0

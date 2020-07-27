@@ -465,7 +465,7 @@ for new_icpu in range(1, new_ncpu+1):
 
     ###########################################################
     # Amr structure
-    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up)
+    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up, nexpand=1)
     file_inds = amr_struct['file_ind']
     nocts = len(file_inds)
 
