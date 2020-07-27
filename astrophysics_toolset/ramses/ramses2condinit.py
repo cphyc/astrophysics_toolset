@@ -151,20 +151,19 @@ def read_amr(amr_file, longint=LONGINT, quadhilbert=QUADHILBERT):
 
         return ret
 
-def convert_ncpus(dirname : str):
+def read_all_amr_files(dirname : str):
     pattern = os.path.join(dirname, 'amr_?????.out?????')
     amr_files = sorted(glob(pattern))
 
     data = {}
-    for i, amr_file in enumerate(amr_files):
-        print(f'Reading {amr_file}')
+    for i, amr_file in enumerate(tqdm(amr_files, desc='Reading AMR')):
         icpu = int(amr_file.split('.out')[1])
         data[icpu] = read_amr(amr_file)  # CPU are indexed by one
     return data
 
 path = os.path.split(ds.parameter_filename)[0]
 
-data = convert_ncpus(path)
+data = read_all_amr_files(path)
 
 # %%
 nlevelmin = ds.parameters['levelmin']
