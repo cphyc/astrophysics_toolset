@@ -36,7 +36,7 @@ from yt.frontends.ramses.field_handlers import (
 )
 from yt.frontends.ramses.particle_handlers import (
     DefaultParticleFileHandler,
-    ParticleFileHandler
+    ParticleFileHandler, SinkParticleFileHandler
 )
 from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
 
@@ -132,6 +132,16 @@ default_headers = {
 
 
 # %%
+
+def rawQuadToDouble(raw: bytes):
+    # From https://stackoverflow.com/a/52568477/2601223
+    asint = int.from_bytes(raw, byteorder='little')
+    sign = (-1.0) ** (asint >> 127);
+    exponent = ((asint >> 112) & 0x7FFF) - 16383;
+    significand = (asint & ((1 << 112) - 1)) | (1 << 112)
+    return sign * significand * 2.0 ** (exponent - 112)
+
+
 def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
     i8b = 'l' if longint else 'i'
     qdp = 'float128' if quadhilbert else 'float64'
@@ -163,7 +173,16 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
         if ordering != 'hilbert':
             raise NotImplementedError
         try:
-            bound_keys = f.read_vector(qdp).reshape(ndomain + 1)
+            if quadhilbert:
+                with open(amr_file, 'br') as f2:
+                    f2.seek(f.tell())
+                    s1 = int.from_bytes(f2.read(4), byteorder='little')
+                    bound_keys = np.array([rawQuadToDouble(f2.read(16)) for i in range(ndomain+1)], dtype=np.float128)
+                    s2 = int.from_bytes(f2.read(4), byteorder='little')
+                    assert s1 == s2
+                    f.seek(f2.tell())
+            else:
+                bound_keys = f.read_vector(qdp).reshape(ndomain + 1)
         except ValueError as e:
             raise Exception(
                 'Caught an exception while reading hilbert keys. This is likely due '
@@ -894,7 +913,6 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 
         # Write headers
         for key, _len, dtype in h['_structure']:
-            print(f'Writing {key}->{h[key]}')
             tmp = np.atleast_1d(h[key]).astype(dtype)
             assert (len(tmp) == _len) or (_len == -1)
             fout.write_vector(tmp)
@@ -908,8 +926,6 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
                 count = mask.sum()
                 vals[i0:i0+count] = dt[field][mask]
                 i0 += count
-
-            print(f'\tWriting {field} with dtype {vals.dtype} and size {vals.size}/{npart}')
 
             fout.write_vector(vals)
 
