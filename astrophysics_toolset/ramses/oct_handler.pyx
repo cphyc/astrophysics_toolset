@@ -1,19 +1,21 @@
 # distutils: language = c++
 import numpy as np
+
 cimport numpy as np
-
-from libc.stdlib cimport malloc, free
-from libcpp.queue cimport queue
-from libcpp.unordered_map cimport unordered_map
-from libcpp.map cimport map
-from libcpp.pair cimport pair
-
 from cython cimport integral
 from cython.operator cimport dereference as deref
+from libc.stdlib cimport free, malloc
+from libcpp.map cimport map
+from libcpp.pair cimport pair
+from libcpp.queue cimport queue
+from libcpp.unordered_map cimport unordered_map
+
 from cython.parallel import prange
+
 cimport cython
 
 from .hilbert cimport hilbert3d_single
+
 
 cdef extern from *:
     ctypedef int int128_t "__int128_t"

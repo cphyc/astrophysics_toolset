@@ -18,40 +18,30 @@
 # %% [markdown]
 # Writing myself the files
 
-# %%
-from glob import glob
+import argparse
 import os
 import shutil
-from cython_fortran_file import FortranFile as FF
 import sys
+# %%
+from glob import glob
 
-from yt.frontends.ramses.definitions import ramses_header
+import matplotlib as mpl
 import numpy as np
 import yt
-
-from yt.frontends.ramses.field_handlers import (
-    FieldFileHandler,
-    GravFieldFileHandler,
-    HydroFieldFileHandler,
-)
-from yt.frontends.ramses.particle_handlers import (
-    DefaultParticleFileHandler,
-    ParticleFileHandler,
-    SinkParticleFileHandler,
-)
-from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
-
+from cython_fortran_file import FortranFile as FF
 from scipy.interpolate import interp1d
 from tqdm.auto import tqdm
+from yt.frontends.ramses.definitions import ramses_header
+from yt.frontends.ramses.field_handlers import (FieldFileHandler,
+                                                GravFieldFileHandler,
+                                                HydroFieldFileHandler)
+from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
+from yt.frontends.ramses.particle_handlers import (DefaultParticleFileHandler,
+                                                   ParticleFileHandler,
+                                                   SinkParticleFileHandler)
 
 from astrophysics_toolset.ramses.hilbert import hilbert3d
 from astrophysics_toolset.ramses.oct_handler import Octree
-
-import argparse
-
-import sys
-
-import matplotlib as mpl
 
 
 # %%
