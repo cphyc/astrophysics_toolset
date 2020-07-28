@@ -22,7 +22,7 @@ cdef struct Oct:
     np.int64_t new_domain_ind # new domain
     np.uint8_t flag1[8]       # attribute for selection
     np.uint8_t flag2[8]       # temporary flag2
-    np.uint64_t hilbert_key
+    np.uint64_t hilbert_key[8]
     np.int32_t refmap[8]
 
     Oct* parent
@@ -52,8 +52,8 @@ cdef inline void setup_oct(Oct *o, Oct *parent, np.uint8_t icell) nogil:
     o.domain_ind = -1
     o.owning_cpu = -1
     o.new_domain_ind = -1
-    o.hilbert_key = -1
     for i in range(8):
+        o.hilbert_key[i] = -1
         o.flag1[i] = 0
         o.flag2[i] = 0
         o.refmap[i] = -1
@@ -276,6 +276,26 @@ cdef class UncleAuntVisitor(Visitor):
                         print(f'{no2.file_ind} was missed!')
                         q.push(no2)
                         qi.push(ino2)
+
+cdef class HilbertVisitor(Visitor):
+    """Mark all cells contained in an oct in the current domain"""
+    cdef np.uint64_t bk_low, bk_up
+
+    cdef void visit(self, Oct *o):
+        cdef np.uint64_t lvl
+        cdef np.uint64_t hk, ishift, order_min, order_max
+        cdef int i
+
+        lvl = self.ilvl
+        ishift = 3 * (self.bit_length - lvl + 1)
+
+        for i in range(8):
+            hk = o.hilbert_key[i]
+            order_min = hk >> ishift
+            order_max = (order_min + 1) << ishift
+            order_min <<= ishift
+
+            o.flag1[i] = (order_max > self.bk_low) & (order_min < self.bk_up)
 
 
 # cdef class HilbertDomainVisitor(Visitor):
@@ -826,7 +846,7 @@ cdef class Octree:
                   const np.int64_t[::1] domain_ind,
                   const np.int64_t[::1] new_domain_ind,
                   const np.int64_t[::1] owning_cpu,
-                  const np.uint64_t[::1] hilbert_key,
+                  const np.uint64_t[:, ::1] hilbert_key,
                   const np.int32_t[:, ::1] refmap, 
                   const np.int64_t[::1] lvl):
         cdef int N, i, ilvl
@@ -845,8 +865,9 @@ cdef class Octree:
             node.domain_ind = domain_ind[i]
             node.owning_cpu = owning_cpu[i]
             node.new_domain_ind = new_domain_ind[i]
-            node.hilbert_key = hilbert_key[i]
+            
             for j in range(8):
+                node.hilbert_key[j] = hilbert_key[i, j]
                 if node.refmap[j] != -1 and node.refmap[j] != refmap[i, j]:
                     print(f'Changing {node.refmap[j]}->{refmap[i,j]} for oct#{file_ind[i]}')
                 node.refmap[j] = refmap[i, j]
@@ -991,6 +1012,15 @@ cdef class Octree:
             if o.parent != NULL:
                 o.parent.flag1[o.icell] |= 0b1
         return count
+
+    def select_hilbert(self, np.uint64_t bk_low, np.uint64_t bk_up):
+        cdef AllOctsSelector all_octs = AllOctsSelector(self)
+        cdef HilbertVisitor select_hilbert = HilbertVisitor()
+
+        select_hilbert.bk_low = bk_low
+        select_hilbert.bk_up = bk_up
+
+        all_octs.visit_all_octs(select_hilbert)
 
     # @cython.boundscheck(False)
     # @cython.wraparound(False)

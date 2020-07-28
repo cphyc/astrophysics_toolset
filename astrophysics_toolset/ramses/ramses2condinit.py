@@ -411,8 +411,17 @@ for icpu, dt in tqdm(data.items(), desc='Adding grids to tree'):
 
     lvl_ind = dt['_level'][mask].astype(np.int64)
 
-    original_domain = np.full_like(new_domain_ind, icpu)
-    N2 += oct.add(ipos, file_ind, domain_ind=domain_ind, new_domain_ind=new_domain_ind, owning_cpu=original_domain, hilbert_key=dt['_hilbert_key_grid'], refmap=dt['refmap'], lvl=lvl_ind)
+    owing_cpu = np.full_like(new_domain_ind, icpu)
+    N2 += oct.add(
+        ipos,
+        file_ind,
+        domain_ind,
+        new_domain_ind,
+        owing_cpu,
+        dt['_hilbert_key'].reshape(-1, 8),
+        dt['refmap'],
+        lvl_ind
+    )
 
 print(f'Inserted {N2} octs')
 
@@ -611,19 +620,20 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
     oct.clear_paint()
 
     # Select cells that intersect with domain
-    for icpu, dt in tqdm(data.items(), desc='Selecting cells'):
-        lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
-        hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8:]
+    oct.select_hilbert(bk_low, bk_up)
+    # for icpu, dt in tqdm(data.items(), desc='Selecting cells'):
+    #     lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
+    #     hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8:]
 
-        ishift = 3*(bit_length-lvl+1)
-        order_min = (hkg >> ishift)
-        order_max = (order_min + 1) << ishift
-        order_min <<= ishift
+    #     ishift = 3*(bit_length-lvl+1)
+    #     order_min = (hkg >> ishift)
+    #     order_max = (order_min + 1) << ishift
+    #     order_min <<= ishift
 
-        mask = (order_max > bk_low) & (order_min < bk_up)
+    #     mask = (order_max > bk_low) & (order_min < bk_up)
 
-        n = oct.select(dt['_ixcell'][1:].reshape(-1, 3)[mask],
-                       lvl[mask].astype(np.int64))
+    #     n = oct.select(dt['_ixcell'][1:].reshape(-1, 3)[mask],
+    #                    lvl[mask].astype(np.int64))
 
     ###########################################################
     # Headers
