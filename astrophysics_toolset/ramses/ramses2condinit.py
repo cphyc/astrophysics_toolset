@@ -69,6 +69,7 @@ parser.add_argument('--ncpu', type=int, default=4)
 parser.add_argument('--longint', action='store_true')
 parser.add_argument('--quadhilbert', action='store_true')
 parser.add_argument('--nexpand', default=1, type=int, help='Number of times to expand boundaries (default: %(default)s)')
+parser.add_argument('--test', action='store_true')
 
 try:   # in notebook
     from IPython import get_ipython
@@ -970,7 +971,10 @@ def copy_meta(input_info_file, output_dir, bound_key, new_ncpu):
 
 copy_meta(args.input, args.output_dir, new_bound_keys, CONFIG['new_ncpu'])
 # %%
-import sys; sys.exit(0)
+if not args.test:
+    import sys; sys.exit(0)
+else:
+    print('Testing using yt.'.center(200, '='))
 # %%
 yt.funcs.mylog.setLevel(40)
 # Test reading with yt as a weak test
@@ -989,6 +993,7 @@ for ds, prefix in zip((ds_original, ds_new), ('ref', 'new')):
     for d in 'xyz':
         p = yt.ProjectionPlot(ds, d, 'DM_cic')
         images.extend(p.save(f'tmp/frames/{d}_{prefix}'))
+print('You can compare the images look the same using the images from %s' % images)
 
 # %%
 images_with_diff = list(images)
@@ -1088,8 +1093,6 @@ for i in range(6):
         break
     break
 
-
-# %%
 def check_domain(dt):
     ngridmax = dt['headers']['ngridmax']
     print('\t\tChecking neighbours')
@@ -1123,34 +1126,7 @@ print('Rewritten')
 check_tree(new_data)
 
 # %%
-dt = data[1]
-igrid = (dt['nbor'][9]-1) % ngridmax
-icell = (dt['nbor'][9]-1) // ngridmax
-
-print(dt['xc'][9]*8)
-print(dt['xc'][dt['son'][igrid-1, icell]]*8)
-
-# %%
-dt = new_data[1]
-igrid = (dt['nbor'][9]-1) % ngridmax
-icell = (dt['nbor'][9]-1) // ngridmax
-print(dt['xc'][9]*8)
-print(dt['xc'][dt['son'][igrid-1, icell]]*8)
-
-# %%
-print_tree(9, new_data[1])
-
-# %%
-print_tree(9, data[1])
-
-# %%
-dt = new_data[1]
-ioct = 10
-iocts, paths = get_cube(ioct, dt)
-print(f'nocts={len(iocts)}')
-for _ in iocts:
-    print(paths[_][0])
-    print_tree(_, dt)
+import sys; sys.exit(0)
 
 # %%
 from collections import defaultdict
