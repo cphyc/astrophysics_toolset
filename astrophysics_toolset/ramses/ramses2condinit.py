@@ -50,6 +50,8 @@ import argparse
 
 import sys
 
+import matplotlib as mpl
+
 
 # %%
 def in_notebook():
@@ -366,7 +368,7 @@ for icpu, dt in tqdm(data.items()):
     lvl_ind = dt['_level'][mask].astype(np.int64)
 
     original_domain = np.full_like(new_domain_ind, icpu)
-    N2 += oct.add(ipos, file_ind, domain_ind=domain_ind, new_domain_ind=new_domain_ind, owning_cpu=original_domain, hilbert_key=dt['_hilbert_key_grid'], lvl=lvl_ind)
+    N2 += oct.add(ipos, file_ind, domain_ind=domain_ind, new_domain_ind=new_domain_ind, owning_cpu=original_domain, hilbert_key=dt['_hilbert_key_grid'], refmap=dt['refmap'], lvl=lvl_ind)
 
 print(f'Inserted {N2} octs')
 
@@ -374,22 +376,51 @@ print(f'Inserted {N2} octs')
 oct.print_tree(3, print_neighbours=True)
 
 # %%
-dx_neigh0 = np.array([[-1, 1,  0, 0,  0, 0],
-                      [ 0, 0, -1, 1,  0, 0],
-                      [ 0, 0,  0, 0, -1, 1]]).T[None, :, :]
+# def set_neighbours(icpu, dt):
+dt = data[1]
+igrid0 = dt['ind_grid'][1:]
+icell, igrid = np.unravel_index(dt['parent'][igrid0-1]-ncoarse, (8, ngridmax))
 
+np.testing.assert_allclose((((dt['xc'][igrid-1] - dt['xc'][1:]) * 2**dt['_level'][1:, None])**2).sum(axis=1), 3)
+
+# %%
+icell, igrid = np.unravel_index(dt['nbor'][1:]-ncoarse, (8, ngridmax))
+np.round(dt['xc'][igrid-1]*bscale).astype(np.int64)
 
 def set_neighbours(icpu, dt):
     lvl = dt['_level'].astype(int)[1:]
-    xc = dt['xc'][1:]
-    dx = 1/2**(lvl-1)
-    xc_neigh = (xc[1:, None, :] + dx_neigh0 * dx[1:, None, None]) % 1
+    igrid0 = dt['ind_grid'][1:]
 
-    ixc = (xc * bscale).astype(int).copy()
+    icell_neigh, igrid_neigh = np.unravel_index(dt['nbor'][igrid0-1]-ncoarse, (8, ngridmax))
+    dd = 1/2**dt['_level'][igrid_neigh-1][..., None]/2
+    dx = np.array([-1, 1, -1, 1, -1, 1, -1, 1])
+    dy = np.array([-1, -1, 1, 1, -1, -1, 1, 1])
+    dz = np.array([-1, -1, -1, -1, 1, 1, 1, 1])
+    xc = dt['xc']
+    xc_neigh = xc[igrid_neigh-1] + dd * np.stack([dx[icell_neigh], dy[icell_neigh], dz[icell_neigh]], axis=-1)
+    
+    ixc = (xc[igrid0-1] * bscale).astype(int).copy()
     ixc_neigh = (xc_neigh * bscale).astype(int).copy()
 
     # Set neighbours for all octs that do have a child
     oct.set_neighbours(ixc, ixc_neigh, lvl)
+
+# dx_neigh0 = np.array([[-1, 1,  0, 0,  0, 0],
+#                       [ 0, 0, -1, 1,  0, 0],
+#                       [ 0, 0,  0, 0, -1, 1]]).T[None, :, :]
+
+
+# def set_neighbours(icpu, dt):
+#     lvl = dt['_level'].astype(int)[1:]
+#     xc = dt['xc'][1:]
+#     dx = 1/2**(lvl-1)
+#     xc_neigh = (xc[1:, None, :] + dx_neigh0 * dx[1:, None, None]) % 1
+
+#     ixc = (xc * bscale).astype(int).copy()
+#     ixc_neigh = (xc_neigh * bscale).astype(int).copy()
+
+#     # Set neighbours for all octs that do have a child
+#     oct.set_neighbours(ixc, ixc_neigh, lvl)
 
 for icpu, dt in tqdm(data.items(), desc='Setting neighbours'):
     set_neighbours(icpu, dt)
@@ -578,10 +609,12 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
     amr_struct['nbor'] = pair2icell(amr_struct['nbor'])
     amr_struct['cpu_map'] = amr_struct['new_domain_ind']
     amr_struct['ind_grid'] = np.arange(1, nocts+1, dtype=np.int32)
+    amr_struct['headers'] = headers
     new_data[new_icpu] = amr_struct
 
     # Compute refmap, etc.
-    fields = (('refmap', 'refmap'), ('xc', 'xc'), ('cpu_map', '_new_cpu_map'))
+    # fields = (('refmap', 'refmap'), ('xc', 'xc'), ('cpu_map', '_new_cpu_map'))
+    fields = (('xc', 'xc'), ('cpu_map', '_new_cpu_map'))
 
     data_out = {}
 
@@ -633,6 +666,16 @@ for l in new_data[1]['numbl']:
 
 # %%
 oct.check_tree(999)
+
+# %%
+dt = data[1]
+
+# %%
+ds.min_level
+
+# %%
+dt['_level_cell'].max()
+
 
 # %% [markdown]
 # Now write hydro
@@ -934,7 +977,6 @@ yt.funcs.mylog.setLevel(40)
 ds_original = yt.load(args.input)
 ds_new = yt.load(os.path.join(args.output_dir, 'info_%05d.txt' % CONFIG['iout']))
 
-data = {}
 images = []
 os.makedirs('tmp/frames/', exist_ok=True)
 for ds, prefix in reversed(list(zip((ds_new, ds_original, ds_new), ('new', 'ref')))):
@@ -947,9 +989,6 @@ for ds, prefix in zip((ds_original, ds_new), ('ref', 'new')):
     for d in 'xyz':
         p = yt.ProjectionPlot(ds, d, 'DM_cic')
         images.extend(p.save(f'tmp/frames/{d}_{prefix}'))
-
-# %%
-import matplotlib as mpl
 
 # %%
 images_with_diff = list(images)
@@ -1015,27 +1054,196 @@ for field in (('DM', f'particle_{suffix}') for suffix in 'mass position velocity
     np.testing.assert_allclose(vnew, vref)
     print('ok!')
 
-# %%
-ad_new['DM', 'particle_position'][order['new']]
-
-# %%
-ad_ref['DM', 'particle_position'][order['ref']]
-
-# %%
-# cat /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/output_00005/part_file_descriptor.txt
-
-# %%
-np.unique(ad_new['DM', 'particle_identity'], return_counts=True)
-
-# %%
-np.unique(ad_ref['DM', 'particle_identity'], return_counts=True)
-
-# %%
-import sys; sys.exit(0)
-
-
 # %% [markdown]
 # ## Debugging the grid
+
+# %%
+ngridmax = dt['headers']['ngridmax']
+icell, iparent = np.unravel_index(dt['parent']-ncoarse, (8, ngridmax))
+iparent += 1
+
+assert np.all(iparent[1:] > 0)
+def get_this_neighbour(i, j, k, dt, ioct):
+    ioct0 = ioct
+
+    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, i]-ncoarse, (8, ngridmax))
+    ioct = dt['son'][igrid, icell]
+
+    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, j]-ncoarse, (8, ngridmax))
+    ioct = dt['son'][igrid, icell]
+
+    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, k]-ncoarse, (8, ngridmax))
+    ioct = dt['son'][igrid, icell]
+    
+    return ioct
+
+ioct = dt['ind_grid'][9:]
+for i in range(6):
+    for j in range(i+1, 6):
+        if (i//2 == j//2): continue
+        for k in range(j+1, 6):
+            if (k//2 == j//2): continue
+            ineigh = get_this_neighbour(i, j, k, dt, iparent)
+            break
+        break
+    break
+
+
+# %%
+def check_domain(dt):
+    ngridmax = dt['headers']['ngridmax']
+    print('\t\tChecking neighbours')
+    icell, igrid = np.unravel_index(dt['nbor']-ncoarse, (8, ngridmax))
+    icell, igrid
+
+    # Make sure all neighbours exist
+    assert np.all(igrid[1:] > 0)
+    
+    # Make sure all neighbours' neighbour exist
+    all_ix = np.array([0, 2, 4, 6])
+    all_iy = np.array([0, 1, 4, 5])
+    all_iz = np.array([0, 1, 2, 3])
+
+    for ioct in dt['ind_grid'][9:]:
+        son_mask = dt['son'][ioct-1]>0
+        if son_mask.all():
+            cube = get_cube(ioct, dt)[0]
+            if len(cube) != 27:
+                raise Exception(f'{ioct} is missing {27-len(cube)} neighbours')
+
+def check_tree(data):
+    # Check that each grid has its parent neighbour grid
+    for icpu, dt in data.items():
+        print(f'\tChecking domain {icpu}')
+        check_domain(dt)
+
+print('Original')
+check_tree(data)
+print('Rewritten')
+check_tree(new_data)
+
+# %%
+dt = data[1]
+igrid = (dt['nbor'][9]-1) % ngridmax
+icell = (dt['nbor'][9]-1) // ngridmax
+
+print(dt['xc'][9]*8)
+print(dt['xc'][dt['son'][igrid-1, icell]]*8)
+
+# %%
+dt = new_data[1]
+igrid = (dt['nbor'][9]-1) % ngridmax
+icell = (dt['nbor'][9]-1) // ngridmax
+print(dt['xc'][9]*8)
+print(dt['xc'][dt['son'][igrid-1, icell]]*8)
+
+# %%
+print_tree(9, new_data[1])
+
+# %%
+print_tree(9, data[1])
+
+# %%
+dt = new_data[1]
+ioct = 10
+iocts, paths = get_cube(ioct, dt)
+print(f'nocts={len(iocts)}')
+for _ in iocts:
+    print(paths[_][0])
+    print_tree(_, dt)
+
+# %%
+from collections import defaultdict
+
+def print_tree(ioct, dt):
+    header='     ioct  xc                                     cpu_map                    son                                                cpu_neigh            neigh_ind                            '
+    print(header)
+    print('—'*len(header))
+    while ioct >= 1:
+        __ = lambda e: e[e>0]
+        nbor = dt['nbor'][ioct-1]
+        mask = nbor > 0
+        neigh_icell, neigh_igrid = (np.full(6, -1, dtype=int) for _ in range(2))
+        neigh_icell[mask], neigh_igrid[mask] = np.unravel_index(nbor[mask]-ncoarse, (8, ngridmax))
+        cpu_neigh = dt['cpu_map'][neigh_igrid-1, neigh_icell]
+        cpu_neigh[~mask] = -1
+        def __(x, n):
+            return str(x).ljust(n)
+        neigh_ind = dt['son'][neigh_igrid-1, neigh_icell]
+        neigh_ind[~mask] = -1
+        print('', f'{ioct:>8d}', __(dt['xc'][ioct-1], 29), '\t', __(dt['cpu_map'][ioct-1], 26), __(dt['son'][ioct-1], 50), __(cpu_neigh, 20), __(neigh_ind, 20))
+        ioct = (dt['parent'][ioct-1] - ncoarse) % ngridmax
+
+DIRECTIONS = [0, 1, 2]
+def get_cube(ioct, dt, ret=None, prev_directions=[], depth=0, path=''):
+    if ret is None:
+        ret = {}
+        ret['iocts'] = set((ioct, ))
+        ret['path'] = defaultdict(list)
+        ret['path'][ioct] = ['']
+
+    for idir in (_ for _ in DIRECTIONS if _ not in prev_directions):
+        __ = lambda e: e[e>0]
+        neigh_icell, neigh_igrid = np.unravel_index(__(dt['nbor'][ioct-1])-ncoarse, (8, ngridmax))
+        iocts_neigh = dt['son'][neigh_igrid-1, neigh_icell][2*idir:2*idir+2]
+        for ii, ioct_neigh in enumerate(iocts_neigh):
+            if ioct_neigh == 0:
+                continue
+            new_directions = prev_directions + [idir]
+            ret['iocts'].add(ioct_neigh)
+            new_path = str(path)
+            new_path += '-+'[ii] + 'xyz'[idir]
+            ret['path'][ioct_neigh].append(new_path)
+            get_cube(ioct_neigh, dt, ret=ret, prev_directions=new_directions, depth=depth+1, path=new_path)
+
+    paths = ret['path']
+    iocts = sorted(ret['iocts'], key=lambda k: (len(paths[k][0]), paths[k][0]))
+    return iocts, {ioct: paths[ioct] for ioct in iocts}
+
+def match_tree(ioct, dt, new_dt):
+    '''Find an oct in the other tree.'''
+    # Walk the tree up
+    icell_list = []
+    while ioct > 1:
+        __ = lambda e: e[e>0]
+        neigh_icell, neigh_igrid = np.unravel_index(__(dt['nbor'][ioct-1])-ncoarse, (8, ngridmax))
+        ioct_parent = (dt['parent'][ioct-1] - ncoarse) % ngridmax
+        my_index = np.argwhere(dt['son'][ioct_parent-1] == ioct).flatten()[0]
+        icell_list.append(my_index)
+        ioct = ioct_parent
+
+    ioct_old = 1
+    ioct = 1
+    ioct_prev = -1
+    for icell in reversed(icell_list):
+        ioct_prev = ioct
+        ioct = new_dt['son'][ioct-1][icell]
+        ioct_old = dt['son'][ioct_old-1][icell]
+        print(f'{ioct_old:10d} {ioct:10d}')
+    return ioct_prev
+
+
+# %%
+new_data[2]['nbor'].min()
+
+# %%
+new_data[2]['nbor'][2405]
+
+# %%
+new_data[2]['xc'][2405] * bscale
+
+# %%
+print_tree(2406, new_data[2])
+
+# %%
+igrid = 51
+ndt = new_data[5]
+
+ndt['nbor'][igrid-1]
+
+# %%
+ndt['xc'][igrid-1]
+
 
 # %%
 def inspect(dt, imin=0, imax=8, reorder=True):
@@ -1102,68 +1310,6 @@ else:
 
 # %%
 data[1]['ind_grid'][np.argwhere(np.all(ixc_diff[-1] == ixc_orig, axis=1)).flatten()]
-
-# %%
-from collections import defaultdict
-
-def print_tree(ioct, dt):
-    header='     ioct  xc                                     cpu_map                    son                                                cpu_neigh            neigh_ind                            '
-    print(header)
-    print('—'*len(header))
-    while ioct >= 1:
-        neigh_icell, neigh_igrid = np.unravel_index(dt['nbor'][ioct-1]-ncoarse, (8, ngridmax))
-        cpu_neigh = dt['cpu_map'][neigh_igrid-1, neigh_icell]
-        def __(x, n):
-            return str(x).ljust(n)
-        print('', f'{ioct:>8d}', __(dt['xc'][ioct-1], 29), '\t', __(dt['cpu_map'][ioct-1], 26), __(dt['son'][ioct-1], 50), __(cpu_neigh, 20), __(dt['son'][neigh_igrid-1, neigh_icell], 20))
-        ioct = (dt['parent'][ioct-1] - ncoarse) % ngridmax
-
-DIRECTIONS = [0, 1, 2]
-def get_cube(ioct, dt, ret=None, prev_directions=[], depth=0, path=''):
-    if ret is None:
-        ret = {}
-        ret['iocts'] = set((ioct, ))
-        ret['path'] = defaultdict(list)
-        ret['path'][ioct] = ['']
-
-    for idir in (_ for _ in DIRECTIONS if _ not in prev_directions):
-        neigh_icell, neigh_igrid = np.unravel_index(dt['nbor'][ioct-1]-ncoarse, (8, ngridmax))
-        iocts_neigh = dt['son'][neigh_igrid-1, neigh_icell][2*idir:2*idir+2]
-        for ii, ioct_neigh in enumerate(iocts_neigh):
-            if ioct_neigh == 0:
-                continue
-            new_directions = prev_directions + [idir]
-            ret['iocts'].add(ioct_neigh)
-            new_path = str(path)
-            new_path += '-+'[ii] + 'xyz'[idir]
-            ret['path'][ioct_neigh].append(new_path)
-            get_cube(ioct_neigh, dt, ret=ret, prev_directions=new_directions, depth=depth+1, path=new_path)
-
-    paths = ret['path']
-    iocts = sorted(ret['iocts'], key=lambda k: (len(paths[k][0]), paths[k][0]))
-    return iocts, {ioct: paths[ioct] for ioct in iocts}
-
-def match_tree(ioct, dt, new_dt):
-    '''Find an oct in the other tree.'''
-    # Walk the tree up
-    icell_list = []
-    while ioct > 1:
-        neigh_icell, neigh_igrid = np.unravel_index(dt['nbor'][ioct-1]-ncoarse, (8, ngridmax))
-        ioct_parent = (dt['parent'][ioct-1] - ncoarse) % ngridmax
-        my_index = np.argwhere(dt['son'][ioct_parent-1] == ioct).flatten()[0]
-        icell_list.append(my_index)
-        ioct = ioct_parent
-
-    ioct_old = 1
-    ioct = 1
-    ioct_prev = -1
-    for icell in reversed(icell_list):
-        ioct_prev = ioct
-        ioct = new_dt['son'][ioct-1][icell]
-        ioct_old = dt['son'][ioct_old-1][icell]
-        print(f'{ioct_old:10d} {ioct:10d}')
-    return ioct_prev
-
 
 # %%
 ioct_in_new_data = match_tree(28233, data[1], new_data[1])

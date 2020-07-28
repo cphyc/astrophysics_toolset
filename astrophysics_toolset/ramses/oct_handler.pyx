@@ -23,6 +23,7 @@ cdef struct Oct:
     np.uint8_t flag1[8]       # attribute for selection
     np.uint8_t flag2[8]       # temporary flag2
     np.uint64_t hilbert_key
+    np.int32_t refmap[8]
 
     Oct* parent
     np.uint8_t icell            # index in parent cell
@@ -55,6 +56,7 @@ cdef inline void setup_oct(Oct *o, Oct *parent, np.uint8_t icell) nogil:
     for i in range(8):
         o.flag1[i] = 0
         o.flag2[i] = 0
+        o.refmap[i] = -1
 
 #############################################################
 # Mapping functions
@@ -538,6 +540,7 @@ cdef class ExtractionVisitor(Visitor):
     cdef np.int64_t[:, :, ::1] nbor
     cdef np.int64_t[:, ::1] son
     cdef np.int64_t[:, ::1] parent
+    cdef np.int32_t[:, ::1] refmap
 
     cdef int ind_glob
 
@@ -583,6 +586,10 @@ cdef class ExtractionVisitor(Visitor):
         if no != NULL:  # only for root
             self.parent[self.ind_glob, 0] = encode_mapping(no.file_ind, no.owning_cpu)
             self.parent[self.ind_glob, 1] = o.icell
+    
+        # Fill refmap
+        for i in range(8):
+            self.refmap[self.ind_glob, i] = o.refmap[i]
 
         self.ind_glob += 1
 
@@ -820,6 +827,7 @@ cdef class Octree:
                   const np.int64_t[::1] new_domain_ind,
                   const np.int64_t[::1] owning_cpu,
                   const np.uint64_t[::1] hilbert_key,
+                  const np.int32_t[:, ::1] refmap, 
                   const np.int64_t[::1] lvl):
         cdef int N, i, ilvl
         cdef np.uint8_t ichild
@@ -838,6 +846,10 @@ cdef class Octree:
             node.owning_cpu = owning_cpu[i]
             node.new_domain_ind = new_domain_ind[i]
             node.hilbert_key = hilbert_key[i]
+            for j in range(8):
+                if node.refmap[j] != -1 and node.refmap[j] != refmap[i, j]:
+                    print(f'Changing {node.refmap[j]}->{refmap[i,j]} for oct#{file_ind[i]}')
+                node.refmap[j] = refmap[i, j]
 
         return self.ntot - nbefore
 
@@ -1057,7 +1069,7 @@ cdef class Octree:
         cdef np.ndarray[np.int64_t, ndim=3] nbor_arr = np.full((Noct, 6, 2), 0, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] son_arr = np.full((Noct, 8), 0, np.int64)
         cdef np.ndarray[np.int64_t, ndim=2] parent_arr = np.full((Noct, 2), 0, np.int64)
-
+        cdef np.ndarray[np.int32_t, ndim=2] refmap_arr = np.full((Noct, 8), -1, np.int32)
         cdef np.int32_t[::1] file_ind = file_ind_arr
         cdef np.int32_t[::1] domain_ind = domain_ind_arr
         cdef np.int32_t[::1] owning_cpu = owning_cpu_arr
@@ -1066,6 +1078,7 @@ cdef class Octree:
         cdef np.int64_t[:, :, ::1] nbor = nbor_arr
         cdef np.int64_t[:, ::1] son = son_arr
         cdef np.int64_t[:, ::1] parent = parent_arr
+        cdef np.int32_t[:, ::1] refmap = refmap_arr
 
         extract.file_ind = file_ind
         extract.domain_ind = domain_ind
@@ -1075,6 +1088,7 @@ cdef class Octree:
         extract.nbor = nbor
         extract.son = son
         extract.parent = parent
+        extract.refmap = refmap
         print('Extracting data')
         selected_octs.visit_all_octs(extract, traversal='breadth_first')
 
@@ -1105,6 +1119,7 @@ cdef class Octree:
             _sort(nbor_arr)
             _sort(son_arr)
             _sort(parent_arr)
+            _sort(refmap_arr)
 
             # No need to do this for lvl ind, already sorted
             i0 = i
@@ -1203,7 +1218,8 @@ cdef class Octree:
             son=son_arr,
             parent=parent_arr,
             next=np.asarray(inext),
-            prev=np.asarray(iprev)
+            prev=np.asarray(iprev),
+            refmap=refmap_arr
         )
 
     @property
