@@ -16,7 +16,7 @@
 # ---
 
 # %% [markdown]
-# ert# Writing myself the files
+# Writing myself the files
 
 # %%
 from glob import glob
@@ -70,8 +70,10 @@ parser.add_argument('--longint', action='store_true')
 parser.add_argument('--quadhilbert', action='store_true')
 parser.add_argument('--nexpand', default=1, type=int, help='Number of times to expand boundaries (default: %(default)s)')
 parser.add_argument('--test', action='store_true')
+parser.add_argument('--ngridmax', type=int, default=0, help='The new value of ngridmax. If set to 0 (default), then compute it from the total number of octs. If set to -1, use the old value and if set to anything other, use this new value')
 
 try:   # in notebook
+    raise AttributeError()
     from IPython import get_ipython
     ipython = get_ipython()
     ipython.magic('rm -rf /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/output_00005/')
@@ -327,9 +329,9 @@ for icpu, dt in data.items():
 
     cpu_map = dt['cpu_map'].reshape(-1)
     cpu_map_with_keys = np.searchsorted(dt['bound_keys'], dt['_hilbert_key'], side='left')
-    assert np.all(cpu_map == cpu_map_with_keys)
+    # assert np.all(cpu_map == cpu_map_with_keys)
 
-    assert np.allclose(dt['_hilbert_key'], hilbert3d(ixcell.reshape(-1, 3), bit_length))
+    # assert np.allclose(dt['_hilbert_key'], hilbert3d(ixcell.reshape(-1, 3), bit_length))
 
     dt['_ind_cell'] = dt['ind_grid'][:, None] + ii[None, :]
 
@@ -359,6 +361,8 @@ for icpu, dt in data.items():
     son_glob[i:i+N] = dt['son'][mask]
     i += N
 
+Noct_tot = i
+
 # %% [markdown]
 # Recompute CPU map using new keys
 
@@ -381,7 +385,7 @@ for icpu, dt in tqdm(data.items()):
     mask = dt['_level'] <= 99999
     ipos = dt['_ixgrid'][mask].reshape(-1, 3)
     file_ind = dt['ind_grid'][mask].astype(np.int64)
-    domain_ind = np.searchsorted( dt['bound_keys'], dt['_hilbert_key_grid'][mask], side='left')
+    domain_ind = np.searchsorted(dt['bound_keys'], dt['_hilbert_key_grid'][mask], side='left')
     new_domain_ind = np.searchsorted(new_bound_keys, dt['_hilbert_key_grid'][mask], side='left')
     dt['_new_cpu_map'] = np.searchsorted(new_bound_keys, dt['_hilbert_key'], side='left').astype(np.int32).reshape(-1, 8)
 
@@ -393,7 +397,7 @@ for icpu, dt in tqdm(data.items()):
 print(f'Inserted {N2} octs')
 
 # %%
-oct.print_tree(3, print_neighbours=True)
+# oct.print_tree(3, print_neighbours=True)
 
 # %%
 # def set_neighbours(icpu, dt):
@@ -446,7 +450,7 @@ for icpu, dt in tqdm(data.items(), desc='Setting neighbours'):
     set_neighbours(icpu, dt)
 
 # %%
-oct.print_tree(3, print_neighbours=True)
+# oct.print_tree(3, print_neighbours=True)
 
 # %%
 QUADHILBERT = 'float128' if args.quadhilbert else 'float64'
@@ -582,12 +586,12 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
     bk_low = new_bound_keys[new_icpu-1]
     bk_up = new_bound_keys[new_icpu]
 
-    print(f'Selecting grid intersecting with new cpu #{new_icpu}')
+    print(f'Selecting grid intersecting with new cpu #{new_icpu}/{CONFIG["new_ncpu"]}')
 
     oct.clear_paint()
 
     # Select cells that intersect with domain
-    for icpu, dt in data.items():
+    for icpu, dt in tqdm(data.items(), desc='Selecting cells'):
         lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
         hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8:]
 
@@ -600,7 +604,6 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
 
         n = oct.select(dt['_ixcell'][1:].reshape(-1, 3)[mask],
                        lvl[mask].astype(np.int64))
-        print(f'Selected {n} cells')
 
     ###########################################################
     # Headers
@@ -621,9 +624,16 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
     amr_struct['coarse_son'] = dt['coarse_son']
     amr_struct['coarse_refmap'] = dt['coarse_refmap']
 
+    if args.ngridmax == 0:
+        headers['ngridmax'] = Noct_tot * 2 // args.ncpu
+    elif args.ngridmax == -1:
+        headers['ngridmax'] = headers['ngridmax']
+    else:
+        headers['ngridmax'] = args.ngridmax
+
     def pair2icell(v):
         # Compute cell indices from parent oct + icell
-        return v[..., 0] + ncoarse + v[..., 1] * ngridmax
+        return v[..., 0] + ncoarse + v[..., 1] * headers['ngridmax']
 
     amr_struct['parent'] = pair2icell(amr_struct['parent'])
     amr_struct['nbor'] = pair2icell(amr_struct['nbor'])
@@ -657,7 +667,7 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
     # Make sure ngridmax is large enough
     if nocts > headers['ngridmax']:
         raise RuntimeError(
-            'ERROR: you need to increase ngridmax to at least %s!' % nocts
+            'ERROR: you need to increase ngridmax to at least %s, got %s!' % (nocts, headers['ngridmax'])
         )
 
     # Write AMR file
