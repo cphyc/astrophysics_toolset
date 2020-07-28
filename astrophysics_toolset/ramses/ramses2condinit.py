@@ -64,13 +64,14 @@ parser.add_argument('--quadhilbert', action='store_true')
 if False:
     from IPython import get_ipython
     ipython = get_ipython()
-    ipython.magic('rm -rf /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/new_output/')
+    ipython.magic('rm -rf /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/output_00005/')
     args = parser.parse_args([
         '--input',
         '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/output_00005/info_00005.txt',
         '--output-dir',
-        '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/new_output/',
-        '--ncpu', '8'
+        '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/output_00005/',
+        '--ncpu', '8',
+        '--longint'
     ])
 else:
     args = parser.parse_args()
