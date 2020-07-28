@@ -136,8 +136,8 @@ default_headers = {
 def rawQuadToDouble(raw: bytes):
     # From https://stackoverflow.com/a/52568477/2601223
     asint = int.from_bytes(raw, byteorder='little')
-    sign = (-1.0) ** (asint >> 127);
-    exponent = ((asint >> 112) & 0x7FFF) - 16383;
+    sign = (-1.0) ** (asint >> 127)
+    exponent = ((asint >> 112) & 0x7FFF) - 16383
     significand = (asint & ((1 << 112) - 1)) | (1 << 112)
     return sign * significand * 2.0 ** (exponent - 112)
 
