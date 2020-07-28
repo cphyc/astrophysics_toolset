@@ -1023,7 +1023,7 @@ cdef class Octree:
         select_hilbert.bk_low = bk_low
         select_hilbert.bk_up = bk_up
 
-        print('Selecting with {select_hilbert.bk_low} {select_hilbert.bk_up}')
+        print(f'\thilbert key at boundary: {select_hilbert.bk_low} {select_hilbert.bk_up}')
         all_octs.visit_all_octs(select_hilbert)
 
     # @cython.boundscheck(False)
