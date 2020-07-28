@@ -984,7 +984,7 @@ ds_new = yt.load(os.path.join(args.output_dir, 'info_%05d.txt' % CONFIG['iout'])
 images = []
 os.makedirs('tmp/frames/', exist_ok=True)
 for ds, prefix in reversed(list(zip((ds_new, ds_original, ds_new), ('new', 'ref')))):
-    print(f'Prefix = {prefix}')
+    print(f'Loading = {ds}')
     for d in 'xyz':
         p = yt.ProjectionPlot(ds, d, 'density')
         images.extend(p.save(f'tmp/frames/{d}_{prefix}'))
@@ -1063,72 +1063,6 @@ for field in (('DM', f'particle_{suffix}') for suffix in 'mass position velocity
 # ## Debugging the grid
 
 # %%
-ngridmax = dt['headers']['ngridmax']
-icell, iparent = np.unravel_index(dt['parent']-ncoarse, (8, ngridmax))
-iparent += 1
-
-assert np.all(iparent[1:] > 0)
-def get_this_neighbour(i, j, k, dt, ioct):
-    ioct0 = ioct
-
-    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, i]-ncoarse, (8, ngridmax))
-    ioct = dt['son'][igrid, icell]
-
-    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, j]-ncoarse, (8, ngridmax))
-    ioct = dt['son'][igrid, icell]
-
-    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, k]-ncoarse, (8, ngridmax))
-    ioct = dt['son'][igrid, icell]
-    
-    return ioct
-
-ioct = dt['ind_grid'][9:]
-for i in range(6):
-    for j in range(i+1, 6):
-        if (i//2 == j//2): continue
-        for k in range(j+1, 6):
-            if (k//2 == j//2): continue
-            ineigh = get_this_neighbour(i, j, k, dt, iparent)
-            break
-        break
-    break
-
-def check_domain(dt):
-    ngridmax = dt['headers']['ngridmax']
-    print('\t\tChecking neighbours')
-    icell, igrid = np.unravel_index(dt['nbor']-ncoarse, (8, ngridmax))
-    icell, igrid
-
-    # Make sure all neighbours exist
-    assert np.all(igrid[1:] > 0)
-    
-    # Make sure all neighbours' neighbour exist
-    all_ix = np.array([0, 2, 4, 6])
-    all_iy = np.array([0, 1, 4, 5])
-    all_iz = np.array([0, 1, 2, 3])
-
-    for ioct in dt['ind_grid'][9:]:
-        son_mask = dt['son'][ioct-1]>0
-        if son_mask.all():
-            cube = get_cube(ioct, dt)[0]
-            if len(cube) != 27:
-                raise Exception(f'{ioct} is missing {27-len(cube)} neighbours')
-
-def check_tree(data):
-    # Check that each grid has its parent neighbour grid
-    for icpu, dt in data.items():
-        print(f'\tChecking domain {icpu}')
-        check_domain(dt)
-
-print('Original')
-check_tree(data)
-print('Rewritten')
-check_tree(new_data)
-
-# %%
-import sys; sys.exit(0)
-
-# %%
 from collections import defaultdict
 
 def print_tree(ioct, dt):
@@ -1198,6 +1132,72 @@ def match_tree(ioct, dt, new_dt):
         print(f'{ioct_old:10d} {ioct:10d}')
     return ioct_prev
 
+ngridmax = dt['headers']['ngridmax']
+icell, iparent = np.unravel_index(dt['parent']-ncoarse, (8, ngridmax))
+iparent += 1
+
+assert np.all(iparent[1:] > 0)
+def get_this_neighbour(i, j, k, dt, ioct):
+    ioct0 = ioct
+
+    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, i]-ncoarse, (8, ngridmax))
+    ioct = dt['son'][igrid, icell]
+
+    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, j]-ncoarse, (8, ngridmax))
+    ioct = dt['son'][igrid, icell]
+
+    icell, igrid = np.unravel_index(dt['nbor'][ioct-1, k]-ncoarse, (8, ngridmax))
+    ioct = dt['son'][igrid, icell]
+    
+    return ioct
+
+ioct = dt['ind_grid'][9:]
+for i in range(6):
+    for j in range(i+1, 6):
+        if (i//2 == j//2): continue
+        for k in range(j+1, 6):
+            if (k//2 == j//2): continue
+            ineigh = get_this_neighbour(i, j, k, dt, iparent)
+            break
+        break
+    break
+
+def check_domain(dt):
+    ngridmax = dt['headers']['ngridmax']
+    print('\t\tChecking neighbours')
+    icell, igrid = np.unravel_index(dt['nbor']-ncoarse, (8, ngridmax))
+    icell, igrid
+
+    # Make sure all neighbours exist
+    assert np.all(igrid[1:] > 0)
+    
+    # Make sure all neighbours' neighbour exist
+    all_ix = np.array([0, 2, 4, 6])
+    all_iy = np.array([0, 1, 4, 5])
+    all_iz = np.array([0, 1, 2, 3])
+
+    for ioct in dt['ind_grid'][9:]:
+        son_mask = dt['son'][ioct-1]>0
+        if son_mask.all():
+            cube = get_cube(ioct, dt)[0]
+            if len(cube) != 27:
+                raise Exception(f'{ioct} is missing {27-len(cube)} neighbours')
+
+def check_tree(data):
+    # Check that each grid has its parent neighbour grid
+    for icpu, dt in data.items():
+        print(f'\tChecking domain {icpu}')
+        check_domain(dt)
+
+
+# %%
+print('Original')
+check_tree(data)
+print('Rewritten')
+check_tree(new_data)
+
+# %%
+import sys; sys.exit(0)
 
 # %%
 new_data[2]['nbor'].min()
