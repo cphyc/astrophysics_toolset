@@ -997,8 +997,6 @@ cdef class Octree:
     def domain_info(
             self,
             int idomain,
-            np.uint64_t bound_key_min,
-            np.uint64_t bound_key_max,
             int nexpand=1
     ):
         '''Yield the file and domain indices sorted by level'''
