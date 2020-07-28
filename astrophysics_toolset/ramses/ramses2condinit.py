@@ -48,6 +48,12 @@ from astrophysics_toolset.ramses.oct_handler import Octree
 
 import argparse
 
+import sys
+
+
+# %%
+def in_notebook():
+    return sys.argv[0].endswith('ipykernel_launcher.py')
 
 
 # %%
@@ -60,8 +66,9 @@ parser.add_argument('--output-dir', type=str, default='change_ncpu/new_output')
 parser.add_argument('--ncpu', type=int, default=4)
 parser.add_argument('--longint', action='store_true')
 parser.add_argument('--quadhilbert', action='store_true')
+parser.add_argument('--nexpand', default=1, type=int, help='Number of times to expand boundaries (default: %(default)s)')
 
-if False:
+try:   # in notebook
     from IPython import get_ipython
     ipython = get_ipython()
     ipython.magic('rm -rf /home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/output_00005/')
@@ -70,10 +77,14 @@ if False:
         '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/output_00005/info_00005.txt',
         '--output-dir',
         '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/output_00005/',
-        '--ncpu', '8',
-        '--longint'
+        '--ncpu', '4',
+        '--longint',
+        '--nexpand', '1'
     ])
-else:
+    print('='*200)
+    print('# Running in notebook mode!')
+    print('='*200)
+except AttributeError:
     args = parser.parse_args()
 
 input_dir = os.path.abspath(os.path.split(args.input)[0])
@@ -165,7 +176,7 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
         nbor = np.zeros((ngridmax, 2*ndim), dtype='i')
         son, cpu_map, refmap = (np.zeros((ngridmax, 2**ndim), dtype='i') for _ in range(3))
 
-        # Coarse levels 
+        # Coarse levels
         # should be of length 1 unless there are non-periodic boundaries
         ncoarse = 1
         coarse_son = f.read_vector('i').reshape(ncoarse)
@@ -211,7 +222,7 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
         (ind_grid, next, prev, xc, parent,
          nbor, son, cpu_map, refmap,
          _level, _level_cell, _ndom
-        ) = (_[:i] for _ in 
+        ) = (_[:i] for _ in
          (ind_grid, next, prev, xc, parent,
           nbor, son, cpu_map, refmap,
           _level, _level_cell, _ndom)
@@ -380,7 +391,6 @@ def set_neighbours(icpu, dt):
     # Set neighbours for all octs that do have a child
     oct.set_neighbours(ixc, ixc_neigh, lvl)
 
-
 for icpu, dt in tqdm(data.items(), desc='Setting neighbours'):
     set_neighbours(icpu, dt)
 
@@ -388,7 +398,6 @@ for icpu, dt in tqdm(data.items(), desc='Setting neighbours'):
 oct.print_tree(3, print_neighbours=True)
 
 # %%
-
 QUADHILBERT = 'float128' if args.quadhilbert else 'float64'
 LONGINT = 'int64' if args.longint else 'int32'
 
@@ -526,20 +535,21 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
 
     oct.clear_paint()
 
-#     # Select cells that intersect with domain
-#     for icpu, dt in data.items():
-#         lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
-#         hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8]
+    # Select cells that intersect with domain
+    for icpu, dt in data.items():
+        lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
+        hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8:]
 
-#         ishift = 3*(bit_length-lvl+1)
-#         order_min = (hkg >> ishift)
-#         order_max = (order_min + 1) << ishift
-#         order_min <<= ishift
+        ishift = 3*(bit_length-lvl+1)
+        order_min = (hkg >> ishift)
+        order_max = (order_min + 1) << ishift
+        order_min <<= ishift
 
-#         mask = (order_max > bk_low) & (order_min < bk_up)
+        mask = (order_max > bk_low) & (order_min < bk_up)
 
-#         oct.select(dt['_ixcell'][1:].reshape(-1, 3)[mask],
-#                    lvl[mask].astype(np.int64))
+        n = oct.select(dt['_ixcell'][1:].reshape(-1, 3)[mask],
+                       lvl[mask].astype(np.int64))
+        print(f'Selected {n} cells')
 
     ###########################################################
     # Headers
@@ -549,7 +559,7 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
 
     ###########################################################
     # Amr structure
-    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up, nexpand=1)
+    amr_struct = oct.domain_info(new_icpu, bk_low, bk_up, nexpand=args.nexpand)
     file_inds = amr_struct['file_ind']
     nocts = len(file_inds)
 
@@ -621,7 +631,8 @@ for l in new_data[1]['numbl']:
         print('%7d' % c, end='')
     print('| %s' % l.sum())
 
-
+# %%
+oct.check_tree(999)
 
 # %% [markdown]
 # Now write hydro
@@ -801,6 +812,7 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 
     # Extract fields
     fields = data_old[1].keys()
+    print()
 
     with FF(fname, mode='w') as fout:
         h = headers.copy()
@@ -809,6 +821,7 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 
         # Write headers
         for key, _len, dtype in h['_structure']:
+            print(f'Writing {key}->{h[key]}')
             tmp = np.atleast_1d(h[key]).astype(dtype)
             assert (len(tmp) == _len) or (_len == -1)
             fout.write_vector(tmp)
@@ -822,6 +835,8 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
                 count = mask.sum()
                 vals[i0:i0+count] = dt[field][mask]
                 i0 += count
+
+            print(f'\tWriting {field} with dtype {vals.dtype} and size {vals.size}/{npart}')
 
             fout.write_vector(vals)
 
@@ -911,27 +926,52 @@ def copy_meta(input_info_file, output_dir, bound_key, new_ncpu):
 
 
 copy_meta(args.input, args.output_dir, new_bound_keys, CONFIG['new_ncpu'])
-
+# %%
 import sys; sys.exit(0)
 # %%
-
 yt.funcs.mylog.setLevel(40)
 # Test reading with yt as a weak test
 ds_original = yt.load(args.input)
 ds_new = yt.load(os.path.join(args.output_dir, 'info_%05d.txt' % CONFIG['iout']))
 
 data = {}
-os.makedirs('/tmp/frames/', exist_ok=True)
+images = []
+os.makedirs('tmp/frames/', exist_ok=True)
 for ds, prefix in reversed(list(zip((ds_new, ds_original, ds_new), ('new', 'ref')))):
     print(f'Prefix = {prefix}')
     for d in 'xyz':
         p = yt.ProjectionPlot(ds, d, 'density')
-        p.save(f'/tmp/frames/{d}_{prefix}')
+        images.extend(p.save(f'tmp/frames/{d}_{prefix}'))
 
 for ds, prefix in zip((ds_original, ds_new), ('ref', 'new')):
     for d in 'xyz':
         p = yt.ProjectionPlot(ds, d, 'DM_cic')
-        p.save(f'/tmp/frames/{d}_{prefix}')
+        images.extend(p.save(f'tmp/frames/{d}_{prefix}'))
+
+# %%
+import matplotlib as mpl
+
+# %%
+images_with_diff = list(images)
+
+def raw(i):
+    return mpl.image.imread(images[i])
+for i in range(3):
+    new_fname = images[i].replace('_ref', '_diff')
+    diff = (raw(3+i) - raw(i) + 1) / 2
+    mpl.image.imsave(new_fname, diff)
+    images_with_diff.append(new_fname)
+    
+for i in range(6, 6+3):
+    new_fname = images[i].replace('_ref', '_diff')
+    diff = (raw(3+i) - raw(i) + 1) / 2
+    mpl.image.imsave(new_fname, diff)
+    images_with_diff.append(new_fname)
+
+# %%
+import ipyplot
+print('Note: we expect artifacts with particle CIC deposition due to yt internal deposition (does not depose on other domains)')
+ipyplot.plot_class_tabs(np.asarray(images_with_diff), np.asarray(['_'.join(_.split('_')[-3:]) for _ in images_with_diff]), img_width=400)
 
 # %%
 # Compare gas cells
