@@ -381,9 +381,9 @@ for icpu, dt in tqdm(data.items()):
     mask = dt['_level'] <= 99999
     ipos = dt['_ixgrid'][mask].reshape(-1, 3)
     file_ind = dt['ind_grid'][mask].astype(np.int64)
-    domain_ind = np.digitize(dt['_hilbert_key_grid'][mask], dt['bound_keys'])
-    new_domain_ind = np.digitize(dt['_hilbert_key_grid'][mask], new_bound_keys)
-    dt['_new_cpu_map'] = np.digitize(dt['_hilbert_key'], new_bound_keys).astype(np.int32).reshape(-1, 8)
+    domain_ind = np.searchsorted( dt['bound_keys'], dt['_hilbert_key_grid'][mask], side='left')
+    new_domain_ind = np.searchsorted(new_bound_keys, dt['_hilbert_key_grid'][mask], side='left')
+    dt['_new_cpu_map'] = np.searchsorted(new_bound_keys, dt['_hilbert_key'], side='left').astype(np.int32).reshape(-1, 8)
 
     lvl_ind = dt['_level'][mask].astype(np.int64)
 
@@ -925,9 +925,10 @@ def rewrite_particle_files(amr_structure, domains, output_dir, iout):
                 axis=-1
             )
             ipos = np.round(pos * bscale).astype(np.int64)
-            particle_new_domain[icpu+1] = np.digitize(
+            particle_new_domain[icpu+1] = np.searchsorted(
+                amr_structure[1]['bound_keys'],
                 hilbert3d(ipos, bit_length),
-                amr_structure[1]['bound_keys']
+                side='left'
             )
 
         # Need to update the number of cpus in the headers
