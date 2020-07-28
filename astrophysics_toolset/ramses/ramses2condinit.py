@@ -846,13 +846,14 @@ class ParticleFileAttrs(DefaultParticleFileHandler):
     ptype = None  # prevent yt from using this to detect files
 
 
+class SinkFileAttrs(SinkParticleFileHandler):
+    fname_pattern = 'sink_{iout:05d}.out{icpu:05d}'
+    ptype = None
+
+
 particle_descs = {
     'io': ParticleFileAttrs,
-}
-
-
-particle_filename_mapping = {
-    'io': 'part_{iout:05d}.out{icpu:05d}',
+    'sink': SinkFileAttrs
 }
 
 
@@ -890,7 +891,6 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
     with FF(fname, mode='w') as fout:
         h = headers.copy()
         h['npart'] = npart
-        # TODO: nstar, nstar_tot, etc.
 
         # Write headers
         for key, _len, dtype in h['_structure']:
@@ -917,7 +917,25 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 def rewrite_particle_files(amr_structure, domains, output_dir, iout):
     nkind = len(domains[0].particle_handlers)
     ncpu_new = len(amr_structure)
-    all_pdescs = [particle_descs[fh.ptype] for fh in domains[0].particle_handlers]
+    all_pdescs = [
+        particle_descs[ph.ptype]
+        for ph in domains[0].particle_handlers
+        if ph.ptype != 'sink'
+    ]
+
+    # Special case for sinks -> simply make new_ncpu copies (all sink files are the same)
+    for ph in (ph for ph in domains[0].particle_handlers if ph.ptype == 'sink'):
+        pdesc = particle_descs[ph.ptype]
+        original_fname = os.path.join(
+            input_dir,
+            pdesc.fname_pattern.format(iout=iout, icpu=1)
+        )
+        for icpu in tqdm(amr_structure.keys(), desc='Writing sink files', leave=False):
+            fname = os.path.join(
+                output_dir,
+                pdesc.fname_pattern.format(iout=iout, icpu=icpu)
+            )
+            shutil.copy(original_fname, fname)
 
     progress = tqdm(total=nkind)
     for i, pdesc in enumerate(all_pdescs):
