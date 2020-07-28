@@ -381,7 +381,7 @@ cpu_map_new = np.searchsorted(new_bound_keys, hilbert_keys_glob, side='left')
 # %%
 oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG['new_ncpu'])
 N2 = 1
-for icpu, dt in tqdm(data.items()):
+for icpu, dt in tqdm(data.items(), desc='Adding grids to tree'):
     mask = dt['_level'] <= 99999
     ipos = dt['_ixgrid'][mask].reshape(-1, 3)
     file_ind = dt['ind_grid'][mask].astype(np.int64)
