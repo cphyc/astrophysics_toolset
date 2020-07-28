@@ -15,6 +15,9 @@ cimport cython
 
 from .hilbert cimport hilbert3d_single
 
+cdef extern from *:
+    ctypedef int int128_t "__int128_t"
+
 cdef struct Oct:
     np.int64_t file_ind       # on file index
     np.int64_t domain_ind     # original domain
@@ -22,7 +25,7 @@ cdef struct Oct:
     np.int64_t new_domain_ind # new domain
     np.uint8_t flag1[8]       # attribute for selection
     np.uint8_t flag2[8]       # temporary flag2
-    np.uint64_t hilbert_key[8]
+    int128_t hilbert_key[8]
     np.int32_t refmap[8]
 
     Oct* parent
@@ -279,11 +282,11 @@ cdef class UncleAuntVisitor(Visitor):
 
 cdef class HilbertVisitor(Visitor):
     """Mark all cells contained in an oct in the current domain"""
-    cdef np.uint64_t bk_low, bk_up
+    cdef int128_t bk_low, bk_up
 
     cdef void visit(self, Oct *o):
         cdef np.uint64_t lvl
-        cdef np.uint64_t hk, ishift, order_min, order_max
+        cdef int128_t ishift, order_min, order_max
         cdef int i
 
         lvl = self.ilvl
@@ -1013,13 +1016,14 @@ cdef class Octree:
                 o.parent.flag1[o.icell] |= 0b1
         return count
 
-    def select_hilbert(self, np.uint64_t bk_low, np.uint64_t bk_up):
+    def select_hilbert(self, bk_low, bk_up):
         cdef AllOctsSelector all_octs = AllOctsSelector(self)
         cdef HilbertVisitor select_hilbert = HilbertVisitor()
 
         select_hilbert.bk_low = bk_low
         select_hilbert.bk_up = bk_up
 
+        print('Selecting with {select_hilbert.bk_low} {select_hilbert.bk_up}')
         all_octs.visit_all_octs(select_hilbert)
 
     # @cython.boundscheck(False)

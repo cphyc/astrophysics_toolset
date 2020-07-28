@@ -621,6 +621,7 @@ for new_icpu in range(1, CONFIG['new_ncpu']+1):
 
     # Select cells that intersect with domain
     oct.select_hilbert(bk_low, bk_up)
+
     # for icpu, dt in tqdm(data.items(), desc='Selecting cells'):
     #     lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
     #     hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8:]
