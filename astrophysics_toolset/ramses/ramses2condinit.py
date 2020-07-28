@@ -807,8 +807,8 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
         # TODO: nstar, nstar_tot, etc.
 
         # Write headers
-        for key, _len, dtype in headers['_structure']:
-            tmp = np.atleast_1d(headers[key]).astype(dtype)
+        for key, _len, dtype in h['_structure']:
+            tmp = np.atleast_1d(h[key]).astype(dtype)
             assert (len(tmp) == _len) or (_len == -1)
             fout.write_vector(tmp)
 
