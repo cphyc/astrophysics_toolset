@@ -71,6 +71,13 @@ parser.add_argument('--quadhilbert', action='store_true')
 parser.add_argument('--nexpand', default=1, type=int, help='Number of times to expand boundaries (default: %(default)s)')
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--ngridmax', type=int, default=0, help='The new value of ngridmax. If set to 0 (default), then compute it from the total number of octs. If set to -1, use the old value and if set to anything other, use this new value')
+parser.add_argument(
+    '--remap', choices=['interp', 'linear'], default='interp',
+    help=(
+        'Strategy to compute the new refinement map. If "interp", linearly '
+        'interpolate the new hilbert keys from the old map.action. If "linear", '
+        'regularly space the keys.')
+)
 
 try:   # in notebook
     raise AttributeError()
@@ -387,14 +394,17 @@ Noct_tot = i
 # Recompute CPU map using new keys
 
 # %%
-bound_key_orig = interp1d(np.arange(dt['headers']['ncpu']+1), dt['bound_keys'])
-
 old_ncpu = dt['headers']['ncpu']
-new_bound_keys = bound_key_orig(np.linspace(
-    0,
-    dt['headers']['ncpu'],
-    CONFIG['new_ncpu']+1)
-)
+if args.remap == 'interp':
+    bound_key_orig = interp1d(np.arange(dt['headers']['ncpu']+1), dt['bound_keys'])
+
+    new_bound_keys = bound_key_orig(np.linspace(
+        0,
+        dt['headers']['ncpu'],
+        CONFIG['new_ncpu']+1)
+    )
+elif args.remap == 'linear':
+    new_bound_keys = np.linspace(0, dt['bound_keys'][-1], CONFIG['new_ncpu']+1)
 
 cpu_map_new = np.searchsorted(new_bound_keys, hilbert_keys_glob, side='left')
 
@@ -451,7 +461,7 @@ def set_neighbours(icpu, dt):
     dz = np.array([-1, -1, -1, -1, 1, 1, 1, 1])
     xc = dt['xc']
     xc_neigh = xc[igrid_neigh-1] + dd * np.stack([dx[icell_neigh], dy[icell_neigh], dz[icell_neigh]], axis=-1)
-    
+
     ixc = (xc[igrid0-1] * bscale).astype(int).copy()
     ixc_neigh = (xc_neigh * bscale).astype(int).copy()
 
@@ -1081,7 +1091,7 @@ for i in range(3):
     diff = (raw(3+i) - raw(i) + 1) / 2
     mpl.image.imsave(new_fname, diff)
     images_with_diff.append(new_fname)
-    
+
 for i in range(6, 6+3):
     new_fname = images[i].replace('_ref', '_diff')
     diff = (raw(3+i) - raw(i) + 1) / 2
@@ -1102,7 +1112,7 @@ ad_ref = ds_original.all_data()
 
 for ad, prefix in reversed(list(zip((ad_new, ad_ref), ('new', 'ref')))):
     order[prefix] = np.argsort(ad['index', 'morton_index'])
-    
+
 def extract_field(ad, field_name, order):
     return ad[field_name][order]
 
@@ -1123,7 +1133,7 @@ ad_ref = ds_original.all_data()
 
 for ad, prefix in reversed(list(zip((ad_new, ad_ref), ('new', 'ref')))):
     order[prefix] = np.argsort(ad['io', 'particle_identity'])
-    
+
 def extract_field(ad, field_name, order):
     return ad[field_name][order]
 
@@ -1224,7 +1234,7 @@ def get_this_neighbour(i, j, k, dt, ioct):
 
     icell, igrid = np.unravel_index(dt['nbor'][ioct-1, k]-ncoarse, (8, ngridmax))
     ioct = dt['son'][igrid, icell]
-    
+
     return ioct
 
 ioct = dt['ind_grid'][9:]
@@ -1246,7 +1256,7 @@ def check_domain(dt):
 
     # Make sure all neighbours exist
     assert np.all(igrid[1:] > 0)
-    
+
     # Make sure all neighbours' neighbour exist
     all_ix = np.array([0, 2, 4, 6])
     all_iy = np.array([0, 1, 4, 5])
