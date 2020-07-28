@@ -16,7 +16,7 @@
 # ---
 
 # %% [markdown]
-# # Writing myself the files
+# ert# Writing myself the files
 
 # %%
 from glob import glob
@@ -81,7 +81,7 @@ try:   # in notebook
         '--output-dir',
         '/home/ccc/Documents/prog/genetIC/genetIC/tests/test_hydro/change_ncpu/output_00005/',
         '--ncpu', '4',
-        '--longint',
+        '--longint', '--quadhilbert',
         '--nexpand', '1'
     ])
     print('='*200)
@@ -267,6 +267,25 @@ path = os.path.split(ds.parameter_filename)[0]
 data = read_all_amr_files(path)
 
 # %%
+if args.quadhilbert:
+    # Load keys from disk
+    with open(glob(os.path.join(path, 'info_?????.txt'))[0], 'r') as f:
+        lines = f.readlines()
+        
+    for i, l in enumerate(lines):
+        if l.strip().startswith('DOMAIN'):
+            break
+    lines = lines[i+1:]
+    bound_keys = np.zeros(len(data)+1, dtype=np.float128)
+    for i, l in enumerate(lines):
+        klow = float(l[11:32])
+        kup = float(l[35:-1])
+        bound_keys[i] = klow
+        bound_keys[i+1] = kup
+    for dt in data.values():
+        dt['bound_keys'] = bound_keys
+
+# %%
 nlevelmin = ds.parameters['levelmin']
 nlevelmax = data[1]['headers']['nlevelmax']
 boxlen = data[1]['headers']['boxlen']
@@ -307,7 +326,7 @@ for icpu, dt in data.items():
     dt['_hilbert_key_grid'] = hilbert3d(dt['_ixgrid'].reshape(-1, 3), bit_length).astype(np.uint64)
 
     cpu_map = dt['cpu_map'].reshape(-1)
-    cpu_map_with_keys = np.digitize(dt['_hilbert_key'], dt['bound_keys'])
+    cpu_map_with_keys = np.searchsorted(dt['bound_keys'], dt['_hilbert_key'], side='left')
     assert np.all(cpu_map == cpu_map_with_keys)
 
     assert np.allclose(dt['_hilbert_key'], hilbert3d(ixcell.reshape(-1, 3), bit_length))
@@ -353,7 +372,7 @@ new_bound_keys = bound_key_orig(np.linspace(
     CONFIG['new_ncpu']+1)
 )
 
-cpu_map_new = np.digitize(hilbert_keys_glob, new_bound_keys)
+cpu_map_new = np.searchsorted(new_bound_keys, hilbert_keys_glob, side='left')
 
 # %%
 oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG['new_ncpu'])
