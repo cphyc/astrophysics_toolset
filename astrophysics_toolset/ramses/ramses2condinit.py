@@ -288,11 +288,12 @@ path = os.path.split(ds.parameter_filename)[0]
 data = read_all_amr_files(path)
 
 # %%
-if args.quadhilbert:
+def read_hilbert_keys_from_files():
+    # Fallback method when impossible to read hilbert keys from disk
     # Load keys from disk
     with open(glob(os.path.join(path, 'info_?????.txt'))[0], 'r') as f:
         lines = f.readlines()
-        
+
     for i, l in enumerate(lines):
         if l.strip().startswith('DOMAIN'):
             break
