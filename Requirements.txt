@@ -2,7 +2,7 @@ black==19.10b
 bump2version==1.0.0
 coverage==5.1
 cython-fortran-file>=0.2.1
-cython==0.29.14
+Cython==0.29.14
 flake8==3.8.3
 isort==5.1.4
 kaitaistruct>=0.8
