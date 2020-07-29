@@ -1,7 +1,7 @@
 """Support Grafic I/O."""
 
-from scipy.io import FortranFile as FF
 import numpy as np
+from scipy.io import FortranFile as FF
 
 from ..utilities.decorators import read_files
 from ..utilities.types import PathType

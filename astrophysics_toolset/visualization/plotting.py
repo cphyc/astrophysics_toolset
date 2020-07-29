@@ -2,6 +2,11 @@
 # Adapted from mpl_toolkits.axes_grid1
 # LICENSE: Python Software Foundation (http://docs.python.org/license.html)
 
+import warnings
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.mathtext import MathTextWarning
 from matplotlib.offsetbox import AnchoredOffsetbox
 
 
@@ -21,7 +26,7 @@ class AnchoredScaleBar(AnchoredOffsetbox):
         barcolor="black",
         barwidth=None,
         label_kwa={},
-        **kwargs
+        **kwargs,
     ):
         """
         Draw a horizontal and/or vertical  bar with the size in data coordinate
@@ -38,8 +43,8 @@ class AnchoredScaleBar(AnchoredOffsetbox):
         - sep : separation between labels and bars in points.
         - **kwargs : additional arguments passed to base class constructor
         """
+        from matplotlib.offsetbox import AuxTransformBox, HPacker, TextArea, VPacker
         from matplotlib.patches import Rectangle
-        from matplotlib.offsetbox import AuxTransformBox, VPacker, HPacker, TextArea
 
         bars = AuxTransformBox(transform)
         rect_kwa = {"ec": barcolor, "lw": barwidth, "fc": "none"}
@@ -64,7 +69,7 @@ class AnchoredScaleBar(AnchoredOffsetbox):
             child=bars,
             prop=prop,
             frameon=False,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -108,3 +113,46 @@ def add_scalebar(ax, matchx=True, matchy=True, hidex=True, hidey=True, **kwargs)
         ax.set_frame_on(False)
 
     return sb
+
+
+def fix_glyph_errors(ax=None):
+    """Fix missing glyph warnings in matplotlib"""
+    # From https://stackoverflow.com/a/47850541
+
+    if mpl.rcParams["axes.unicode_minus"] is False:
+        warnings.warn(
+            "If you have issues with minus sign, set `axes.unicode_minus` to True in the rcParams."
+        )
+    if mpl.rcParams["text.usetex"]:
+        # Everything is handled by LaTeX, so nothing to do.
+        return
+
+    if ax is None:
+        ax = plt.gca()
+    fig = ax.get_figure()
+    # Force the figure to be drawn
+    if tuple(int(_) for _ in mpl.__version__.split(".")) >= (3, 1, 0):
+        import logging
+
+        logger = logging.getLogger("matplotlib.mathtext")
+        original_level = logger.getEffectiveLevel()
+        logger.setLevel(logging.ERROR)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=MathTextWarning)
+            fig.canvas.draw()
+        logger.setLevel(original_level)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=MathTextWarning)
+            fig.canvas.draw()
+    # Remove '\mathdefault' from all minor tick labels
+    labels = [
+        label.get_text().replace("\mathdefault", "")
+        for label in ax.get_xminorticklabels()
+    ]
+    ax.set_xticklabels(labels, minor=True)
+    labels = [
+        label.get_text().replace("\mathdefault", "")
+        for label in ax.get_yminorticklabels()
+    ]
+    ax.set_yticklabels(labels, minor=True)
