@@ -22,9 +22,11 @@ import argparse
 import os
 import shutil
 import sys
+from collections import defaultdict
 # %%
 from glob import glob
 
+import ipyplot
 import matplotlib as mpl
 import numpy as np
 import yt
@@ -32,13 +34,17 @@ from cython_fortran_file import FortranFile as FF
 from scipy.interpolate import interp1d
 from tqdm.auto import tqdm
 from yt.frontends.ramses.definitions import ramses_header
-from yt.frontends.ramses.field_handlers import (FieldFileHandler,
-                                                GravFieldFileHandler,
-                                                HydroFieldFileHandler)
+from yt.frontends.ramses.field_handlers import (
+    FieldFileHandler,
+    GravFieldFileHandler,
+    HydroFieldFileHandler,
+)
 from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
-from yt.frontends.ramses.particle_handlers import (DefaultParticleFileHandler,
-                                                   ParticleFileHandler,
-                                                   SinkParticleFileHandler)
+from yt.frontends.ramses.particle_handlers import (
+    DefaultParticleFileHandler,
+    ParticleFileHandler,
+    SinkParticleFileHandler,
+)
 
 from astrophysics_toolset.ramses.hilbert import hilbert3d
 from astrophysics_toolset.ramses.oct_handler import Octree
@@ -183,7 +189,7 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
         numbl = f.read_vector("i").reshape(shape)
         try:
             numbtot = f.read_vector(i8b).reshape((10, headers["nlevelmax"]))
-        except ValueError as e:
+        except ValueError:
             raise Exception(
                 "Caught an exception while reading numbtot. This is likely due "
                 "to you forgetting to (un)set the longint flag!\n"
@@ -212,7 +218,7 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
                     f.seek(f2.tell())
             else:
                 bound_keys = f.read_vector(qdp).reshape(ndomain + 1)
-        except ValueError as e:
+        except ValueError:
             raise Exception(
                 "Caught an exception while reading hilbert keys. This is likely due "
                 "to you forgetting to (un)set the quadhibert flag!\n"
@@ -242,9 +248,14 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
         coarse_cpu_map = f.read_vector("i").reshape(ncoarse)
 
         ret = {"headers": headers}
-        for k in ("headl taill numbl numbtot bound_keys son refmap cpu_map").split():
-            v = eval(k)
-            ret[k] = v
+        ret["headl"] = headl
+        ret["taill"] = taill
+        ret["numbl"] = numbl
+        ret["numbtot"] = numbtot
+        ret["bound_keys"] = bound_keys
+        ret["son"] = son
+        ret["refmap"] = refmap
+        ret["cpu_map"] = cpu_map
 
         # Fine levels
         i = 0
@@ -252,10 +263,11 @@ def read_amr(amr_file, longint=args.longint, quadhilbert=args.quadhilbert):
             for ibound in range(nboundary + ncpu):
                 if ibound <= ncpu:
                     ncache = numbl[ilevel, ibound]  # NOTE: C-order vs. F-order
-                    istart = headl[ilevel, ibound]
                 else:
-                    ncache = numbb[ilevel, ibound - ncpu]
-                    istart = headb[ilevel, ibound - ncpu]
+                    raise NotImplementedError(
+                        "Cannot load datasets with non-periodic boundary conditions"
+                    )
+                    # ncache = numbb[ilevel, ibound - ncpu]
 
                 def read(kind):
                     tmp = f.read_vector(kind)
@@ -363,6 +375,7 @@ def read_hilbert_keys_from_files():
     with open(glob(os.path.join(path, "info_?????.txt"))[0], "r") as f:
         lines = f.readlines()
 
+    i = len(lines)
     for i, l in enumerate(lines):
         if l.strip().startswith("DOMAIN"):
             break
@@ -392,11 +405,11 @@ ncode = nx_loc * int(bscale)
 bscale = int(bscale / scale)
 
 temp = ncode
+bit_length = -1
 for bit_length in range(1, 32 + 1):
     ncode = ncode // 2
     if ncode <= 1:
         break
-ncode, bit_length, bscale
 
 # %% [markdown]
 # At this stage, we have loaded the AMR structure and we make sure we are able to recompute the CPU map. This will be useful in the future.
@@ -478,6 +491,8 @@ if args.remap == "interp":
     )
 elif args.remap == "linear":
     new_bound_keys = np.linspace(0, dt["bound_keys"][-1], CONFIG["new_ncpu"] + 1)
+else:
+    raise NotImplementedError(f"Remap method {args.remap} has not been implemented.")
 
 cpu_map_new = np.searchsorted(new_bound_keys, hilbert_keys_glob, side="left")
 
@@ -667,13 +682,8 @@ def write_amr_file(headers, amr_struct, amr_file):
         f.write_vector(tmp)
 
     # Coarse level
-    headl = amr_struct["headl"]
     numbl = amr_struct["numbl"]
-    son = amr_struct["son"]
-    refmap = amr_struct["refmap"]
-    cpu_map = amr_struct["cpu_map"]
     print("Coarse level")
-    ncoarse = np.product(headers["nx"])
     # NOTE: since son has shape (ncoarse + ngridmax*8, we only need to write cell 0
     #       of coarse level (i.e. root oct)
     f.write_vector(amr_struct["coarse_son"].astype(np.int32))
@@ -701,8 +711,8 @@ def write_amr_file(headers, amr_struct, amr_file):
         for ibound in range(ncpu + nboundary):
             if ibound < ncpu:
                 ncache = numbl[ilvl, ibound]
-            else:
-                ncache = numbb[ilvl, ibound]
+            # else:
+            #     ncache = numbb[ilvl, ibound]
             if ncache == 0:
                 continue
             write_chunk("ind_grid")
@@ -1149,8 +1159,6 @@ def copy_meta(input_info_file, output_dir, bound_key, new_ncpu):
 copy_meta(args.input, args.output_dir, new_bound_keys, CONFIG["new_ncpu"])
 # %%
 if not args.test:
-    import sys
-
     sys.exit(0)
 else:
     print("Testing using yt.".center(200, "="))
@@ -1195,8 +1203,6 @@ for i in range(6, 6 + 3):
     images_with_diff.append(new_fname)
 
 # %%
-import ipyplot
-
 print(
     "Note: we expect artifacts with particle CIC deposition due to yt internal deposition (does not depose on other domains)"
 )
@@ -1263,9 +1269,6 @@ for field in (
 # ## Debugging the grid
 
 # %%
-from collections import defaultdict
-
-
 def print_tree(ioct, dt):
     header = "     ioct  xc                                     cpu_map                    son                                                cpu_neigh            neigh_ind                            "
     print(header)
@@ -1370,8 +1373,6 @@ assert np.all(iparent[1:] > 0)
 
 
 def get_this_neighbour(i, j, k, dt, ioct):
-    ioct0 = ioct
-
     icell, igrid = np.unravel_index(dt["nbor"][ioct - 1, i] - ncoarse, (8, ngridmax))
     ioct = dt["son"][igrid, icell]
 
@@ -1408,10 +1409,6 @@ def check_domain(dt):
     assert np.all(igrid[1:] > 0)
 
     # Make sure all neighbours' neighbour exist
-    all_ix = np.array([0, 2, 4, 6])
-    all_iy = np.array([0, 1, 4, 5])
-    all_iz = np.array([0, 1, 2, 3])
-
     for ioct in dt["ind_grid"][9:]:
         son_mask = dt["son"][ioct - 1] > 0
         if son_mask.all():
@@ -1434,8 +1431,6 @@ print("Rewritten")
 check_tree(new_data)
 
 # %%
-import sys
-
 sys.exit(0)
 
 # %%
