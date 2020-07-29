@@ -444,7 +444,14 @@ for icpu, dt in data.items():
         dt["bound_keys"], dt["_hilbert_key"], side="left"
     )
 
-    assert np.all(cpu_map == cpu_map_with_keys)
+    # Since we're casting the keys to float64, some cells will be
+    # in the wrong domain with quadhilbert. Make sure that's a minority.
+    if args.quadhilbert:
+        N = cpu_map.size
+
+        assert np.where(cpu_map != cpu_map_with_keys).sum() < (N / 10_000)
+    else:
+        assert np.all(cpu_map == cpu_map_with_keys)
 
     dt["_ind_cell"] = dt["ind_grid"][:, None] + ii[None, :]
 
