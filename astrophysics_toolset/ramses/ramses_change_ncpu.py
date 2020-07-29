@@ -449,7 +449,14 @@ for icpu, dt in data.items():
     if args.quadhilbert:
         N = cpu_map.size
 
-        assert (cpu_map != cpu_map_with_keys).sum() < (N / 10_000)
+        count = (cpu_map != cpu_map_with_keys).sum()
+        if count > dt["headers"]["ncpu"]:
+            print(
+                "At this point I am computing the new CPU map and making sure the "
+                "calculations agree with what RAMSES dumped. Unfortunately, I found"
+                f"{count} cells which were attributed to the wrong CPU.\t"
+                "Just wanted to let you know!."
+            )
     else:
         assert np.all(cpu_map == cpu_map_with_keys)
 
