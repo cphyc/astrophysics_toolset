@@ -1,9 +1,8 @@
 import numpy as np
-import pytest 
+import pytest
+from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
 
 from astrophysics_toolset.ramses.hilbert import hilbert3d
-
-from yt.frontends.ramses.hilbert import hilbert3d as hilbert3d_yt
 
 
 @pytest.fixture
