@@ -107,7 +107,7 @@ class DisperseReader(KaitaiStruct):
             self._unnamed2 = self._io.ensure_fixed_contents(
                 b"\x10\x00\x00\x00\x00\x00\x00\x00"
             )
-            self.comment = (self._io.read_bytes(80)).decode(u"ASCII")
+            self.comment = (self._io.read_bytes(80)).decode("ASCII")
             self.ndim = self._io.read_u4le()
             self.dims = [None] * (self.ndim)
             for i in range(self.ndim):
@@ -141,13 +141,13 @@ class DisperseReader(KaitaiStruct):
             self._unnamed16 = self._io.read_u4le()
             self.seg_data_info = [None] * (self.nseg_data)
             for i in range(self.nseg_data):
-                self.seg_data_info[i] = (self._io.read_bytes(20)).decode(u"ASCII")
+                self.seg_data_info[i] = (self._io.read_bytes(20)).decode("ASCII")
 
             self._unnamed18 = self._io.read_u4le()
             self._unnamed19 = self._io.read_u4le()
             self.node_data_info = [None] * (self.nnode_data)
             for i in range(self.nnode_data):
-                self.node_data_info[i] = (self._io.read_bytes(20)).decode(u"ASCII")
+                self.node_data_info[i] = (self._io.read_bytes(20)).decode("ASCII")
 
             self._unnamed21 = self._io.read_u4le()
             self._unnamed22 = self._io.read_u4le()

@@ -27,7 +27,7 @@ def gaussian_filter(i, R):
         np.meshgrid(
             *[np.fft.fftfreq(_, d=d) for _ in i.shape[:-1]],
             np.fft.rfftfreq(i.shape[-1], d=d),
-            indexing="ij"
+            indexing="ij",
         ),
         axis=0,
     )
@@ -62,7 +62,7 @@ def top_hat_filter(i, R):
         np.meshgrid(
             *[np.fft.fftfreq(_, d=d) for _ in i.shape[:-1]],
             np.fft.rfftfreq(i.shape[-1], d=d),
-            indexing="ij"
+            indexing="ij",
         ),
         axis=0,
     )
