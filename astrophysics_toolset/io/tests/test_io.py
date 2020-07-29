@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import os
 
 from ..yorick import PDBReader
 
@@ -49,6 +50,7 @@ def deep_dict_compare(a, b, prefix=[], print_pre=""):
             print("ok!")
 
 
+@pytest.mark.skipif(os.environ['SKIP_YORICK'] == "1")
 def test_structure(pdb):
     expected_structure = {
         "catalog": {
@@ -89,6 +91,7 @@ def test_structure(pdb):
     deep_dict_compare(pdb.structure, expected_structure)
 
 
+@pytest.mark.skipif(os.environ['SKIP_YORICK'] == "1")
 def test_access(pdb):
     # This should work
     for keys, expected_type in walker_helper([], pdb.structure):
@@ -100,6 +103,7 @@ def test_access(pdb):
             assert isinstance(res, np.ndarray)
 
 
+@pytest.mark.skipif(os.environ['SKIP_YORICK'] == "1")
 def test_access_incorrect(pdb):
     with pytest.raises(KeyError):
         pdb["this/does/not/exists"]
