@@ -1,7 +1,7 @@
-from ..periodicity import wrap_coordinates, distance_to_center
-
 import numpy as np
 import pytest
+
+from ..periodicity import distance_to_center, wrap_coordinates
 
 
 @pytest.fixture

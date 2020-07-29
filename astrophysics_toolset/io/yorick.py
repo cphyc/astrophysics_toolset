@@ -1,30 +1,32 @@
 import re
-from ..utilities.logging import logger
-from ..utilities.decorators import read_files
 
-STRUCT_NAME_RE = re.compile(r'^struct (\w+) \{$')
-ARRAY_RE = re.compile(r'^\s*(\w+) (\w+)\((\d+)\);$')
-VAR_RE = re.compile(r'^\s*(\w+) (\w+);$')
+from ..utilities.decorators import read_files
+from ..utilities.logging import logger
+
+STRUCT_NAME_RE = re.compile(r"^struct (\w+) \{$")
+ARRAY_RE = re.compile(r"^\s*(\w+) (\w+)\((\d+)\);$")
+VAR_RE = re.compile(r"^\s*(\w+) (\w+);$")
 
 
 class PDBReader:
-    _known_types = {
-        'int': int,
-        'float': float,
-        'pointer': 'yorick_pointer'
-    }
+    _known_types = {"int": int, "float": float, "pointer": "yorick_pointer"}
 
     @read_files(1)
     def __init__(self, fname):
         try:
             import pyorick
-        except ModuleNotFoundError:
-            logger.error('Reading PDB files requires the pyorick package. '
-                         'Install it via `pip install pyorick` along with Yorick.')
+        except ModuleNotFoundError as e:
+            logger.error(
+                "Reading PDB files requires the pyorick package. "
+                "Install it via `pip install pyorick` along with Yorick."
+            )
+            raise e
 
         if not self.check(fname):
-            raise Exception('Unrecognized file format for file %s, '
-                            'could not read as PDB file.' % fname)
+            raise Exception(
+                "Unrecognized file format for file %s, "
+                "could not read as PDB file." % fname
+            )
 
         self._known_types = self._known_types.copy()
         self.yo = pyorick.Yorick()
@@ -39,21 +41,21 @@ class PDBReader:
 
     def check(self, fname):
         # Test that the file starts with the magic string
-        with open(fname, 'br') as f:
-            return f.readline().decode() == '!<<PDB:II>>!\n'
+        with open(fname, "br") as f:
+            return f.readline().decode() == "!<<PDB:II>>!\n"
 
     def _get_vars(self):
-        self.yo('ptrs=get_vars(f)')
+        self.yo("ptrs=get_vars(f)")
 
-        length = int(self.yo.e('numberof(ptrs)')) - 1
+        length = int(self.yo.e("numberof(ptrs)")) - 1
         variables = []
         for i in range(length):
-            variables.append(*self.yo.e(f'*ptrs({i+1})'))
+            variables.append(*self.yo.e(f"*ptrs({i+1})"))
         return variables
 
     def _parse_struct(self, var_name):
-        v = f'f.{var_name}'
-        lines = self.yo.e(f'print(structof({v}))')
+        v = f"f.{var_name}"
+        lines = self.yo.e(f"print(structof({v}))")
 
         # Now parse the structure
         remaining = lines[1:-1]  # last line is just }
@@ -69,7 +71,7 @@ class PDBReader:
                 length = 0
 
             if type_name not in self._known_types:
-                new_type = self._parse_struct(f'{var_name}.{name}')
+                new_type = self._parse_struct(f"{var_name}.{name}")
                 self._known_types[type_name] = new_type
                 type_name = new_type
             else:
@@ -91,15 +93,15 @@ class PDBReader:
             return self._data[path]
 
         # Check the patch does exist
-        keys = path.split('/')
+        keys = path.split("/")
         node = self.structure
         for k in keys:
             node = node.get(k, None)
             if node is None:
-                raise KeyError('Provided path does not exist on file: %s' % path)
-        cmd = 'f.%s' % path.replace('/', '.')
+                raise KeyError("Provided path does not exist on file: %s" % path)
+        cmd = "f.%s" % path.replace("/", ".")
 
-        value = self.yo(f'={cmd}')
+        value = self.yo(f"={cmd}")
         self._data[path] = value
         return value
 
