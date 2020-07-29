@@ -996,11 +996,18 @@ def particle_file_reader(
     data_out = {}
     with FF(particle_handler.fname, "r") as fin:
         headers.update(fin.read_attrs(particle_handler.attrs))
-        npart = headers["npart"]
+        try:
+            npart = headers["npart"]
+        except KeyError:
+            npart = headers[""]
+        npart = headers.get("npart", None)
 
         for k, dtype in particle_handler.field_types.items():
             data_out[k] = fin.read_vector(dtype)
-            assert data_out[k].size == npart
+
+            # This happens for sink files
+            if npart is not None:
+                assert data_out[k].size == npart
 
     return headers, data_out
 
@@ -1043,16 +1050,16 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 
 
 def rewrite_particle_files(amr_structure, domains, output_dir, iout):
-    nkind = len(domains[0].particle_handlers)
     ncpu_new = len(amr_structure)
-    all_pdescs = [
-        particle_descs[ph.ptype]
-        for ph in domains[0].particle_handlers
-        if ph.ptype != "sink"
-    ]
+
+    particle_handlers = domains[0].particle_handlers
+    nkind = len(particle_handlers)
+
+    progress = tqdm(total=nkind)
 
     # Special case for sinks -> simply make new_ncpu copies (all sink files are the same)
-    for ph in (ph for ph in domains[0].particle_handlers if ph.ptype == "sink"):
+    for ph in (ph for ph in particle_handlers if ph.ptype == "sink"):
+        progress.set_description(f"{ph.ptype}: R")
         pdesc = particle_descs[ph.ptype]
         original_fname = os.path.join(
             input_dir, pdesc.fname_pattern.format(iout=iout, icpu=1)
@@ -1062,11 +1069,13 @@ def rewrite_particle_files(amr_structure, domains, output_dir, iout):
                 output_dir, pdesc.fname_pattern.format(iout=iout, icpu=icpu)
             )
             shutil.copy(original_fname, fname)
+        progress.update()
 
-    progress = tqdm(total=nkind)
-    for i, pdesc in enumerate(all_pdescs):
-        ptype = domains[0].particle_handlers[i].ptype
-        progress.set_description(f"{ptype}: R")
+    for i, ph in enumerate(particle_handlers):
+        if ph.ptype == "sink":
+            continue
+        progress.set_description(f"{ph.ptype}: R")
+        pdesc = particle_descs[ph.ptype]
         data_orig = {}
         particle_new_domain = {}
         headers = {}
@@ -1086,7 +1095,7 @@ def rewrite_particle_files(amr_structure, domains, output_dir, iout):
         headers["ncpu"] = ncpu_new
         headers["_structure"] = pdesc.attrs
 
-        progress.set_description(f"{ptype}: W")
+        progress.set_description(f"{ph.ptype}: W")
         for icpu in tqdm(amr_structure.keys(), desc="Writing files", leave=False):
             fname = os.path.join(
                 output_dir, pdesc.fname_pattern.format(iout=iout, icpu=icpu)
@@ -1094,7 +1103,7 @@ def rewrite_particle_files(amr_structure, domains, output_dir, iout):
             particle_file_writer(
                 fname, particle_new_domain, headers, data_old=data_orig, new_icpu=icpu
             )
-        progress.update(1)
+        progress.update()
 
 
 rewrite_particle_files(
