@@ -1023,7 +1023,7 @@ cdef class Octree:
     def count_octs(self):
         cdef AllOctsSelector all_octs = AllOctsSelector(self)
         cdef CountVisitor counter = CountVisitor(0)
-        selected_octs.visit_all_octs(counter)
+        all_octs.visit_all_octs(counter)
 
         return counter.count
 
