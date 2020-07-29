@@ -1,7 +1,7 @@
 Sphinx==3.1.2
 black~=19.10
 bump2version==1.0.0
-coverage==5.1
+coverage==5.2.1
 cython==0.29.14
 flake8==3.8.3
 isort==5.2.1
