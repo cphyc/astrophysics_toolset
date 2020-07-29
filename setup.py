@@ -64,7 +64,7 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/cphyc/astrophysics_toolset',
-    version='0.2.2',
+    version='0.2.3',
     zip_safe=False,
     ext_modules=cythonize(
         extensions, language_level=3,
