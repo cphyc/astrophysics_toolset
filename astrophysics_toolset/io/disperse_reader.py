@@ -1,7 +1,6 @@
 # This is a generated file! Please edit source .ksy file and use kaitai-struct-compiler to rebuild
 
-from kaitaistruct import BytesIO, KaitaiStream, KaitaiStruct
-from kaitaistruct import __version__ as ks_version
+from kaitaistruct import BytesIO, KaitaiStream, KaitaiStruct, __version__ as ks_version
 from pkg_resources import parse_version
 
 if parse_version(ks_version) < parse_version("0.7"):
