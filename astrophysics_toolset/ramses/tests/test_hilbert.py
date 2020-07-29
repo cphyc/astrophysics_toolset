@@ -14,7 +14,7 @@ def seed():
 def test_hilbert(seed, bit_length):
     N = 10
 
-    ipos = np.random.randint(2**bit_length, size=(N, 3))
+    ipos = np.random.randint(2 ** bit_length, size=(N, 3))
 
     ref = hilbert3d_yt(ipos, bit_length)
     new = hilbert3d(ipos, bit_length).astype(np.float64)
