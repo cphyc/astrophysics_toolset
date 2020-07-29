@@ -1,7 +1,13 @@
+import distutils.spawn
+import os
+
 import numpy as np
 import pytest
 
 from ..yorick import PDBReader
+
+SKIP_YORICK = distutils.spawn.find_executable("yorick") is None
+SKIP_YORICK_REASON = "Could not find yorick executable. Skipping tests."
 
 
 @pytest.fixture
@@ -49,6 +55,7 @@ def deep_dict_compare(a, b, prefix=[], print_pre=""):
             print("ok!")
 
 
+@pytest.mark.skipif(SKIP_YORICK, reason=SKIP_YORICK_REASON)
 def test_structure(pdb):
     expected_structure = {
         "catalog": {
@@ -89,6 +96,7 @@ def test_structure(pdb):
     deep_dict_compare(pdb.structure, expected_structure)
 
 
+@pytest.mark.skipif(SKIP_YORICK, reason=SKIP_YORICK_REASON)
 def test_access(pdb):
     # This should work
     for keys, expected_type in walker_helper([], pdb.structure):
@@ -100,6 +108,7 @@ def test_access(pdb):
             assert isinstance(res, np.ndarray)
 
 
+@pytest.mark.skipif(SKIP_YORICK, reason=SKIP_YORICK_REASON)
 def test_access_incorrect(pdb):
     with pytest.raises(KeyError):
         pdb["this/does/not/exists"]
