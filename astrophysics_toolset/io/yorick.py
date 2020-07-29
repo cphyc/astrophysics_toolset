@@ -1,5 +1,4 @@
 import re
-import yorick
 
 from ..utilities.decorators import read_files
 from ..utilities.logging import logger
@@ -16,11 +15,12 @@ class PDBReader:
     def __init__(self, fname):
         try:
             import pyorick
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as e:
             logger.error(
                 "Reading PDB files requires the pyorick package. "
                 "Install it via `pip install pyorick` along with Yorick."
             )
+            raise e
 
         if not self.check(fname):
             raise Exception(
