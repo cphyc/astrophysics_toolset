@@ -1,13 +1,13 @@
-import numpy as np
 import distutils.spawn
-import pytest
 import os
+
+import numpy as np
+import pytest
 
 from ..yorick import PDBReader
 
-
 SKIP_YORICK = distutils.spawn.find_executable("yorick") is None
-SKIP_YORICK_REASON = 'Could not find yorick executable. Skipping tests.'
+SKIP_YORICK_REASON = "Could not find yorick executable. Skipping tests."
 
 
 @pytest.fixture
