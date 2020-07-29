@@ -8,8 +8,3 @@ repos:
     rev: v1.2.3
     hooks:
     - id: flake8
-
--   repo: https://github.com/timothycrosley/isort
-    rev: 5.1.4  # Use the revision sha / tag you want to point at
-    hooks:
-    -   id: isort

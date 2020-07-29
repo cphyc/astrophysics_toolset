@@ -1020,6 +1020,13 @@ cdef class Octree:
                 o.parent.flag1[o.icell] |= 0b1
         return count
 
+    def count_octs(self):
+        cdef AllOctsSelector all_octs = AllOctsSelector(self)
+        cdef CountVisitor counter = CountVisitor(0)
+        selected_octs.visit_all_octs(counter)
+
+        return counter.count
+
     def select_hilbert(self, bk_low, bk_up):
         cdef AllOctsSelector all_octs = AllOctsSelector(self)
         cdef HilbertVisitor select_hilbert = HilbertVisitor()

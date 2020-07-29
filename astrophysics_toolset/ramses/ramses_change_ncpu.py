@@ -454,34 +454,6 @@ for icpu, dt in data.items():
     Ncell_tot += (dt["cpu_map"] == icpu).sum()
 
 # %% [markdown]
-# Store global data
-
-# %%
-ind_glob = np.empty(
-    (Ncell_tot, 3), dtype=np.int64, order="F"
-)  # first dim: local cell index, second: icpu, third: global index
-ixcell_glob = np.empty((Ncell_tot, 3), dtype=np.int32, order="F")
-cpu_map_glob, lvl_glob, son_glob = (
-    np.empty((Ncell_tot), dtype=np.int32) for _ in range(3)
-)
-hilbert_keys_glob = np.empty(Ncell_tot, dtype=np.float64)
-i = 0
-for icpu, dt in data.items():
-    mask = dt["cpu_map"] == icpu
-    N = mask.sum()
-    ind_glob[i : i + N, 0] = dt["_ind_cell"][mask]
-    ind_glob[i : i + N, 1] = icpu
-    ind_glob[i : i + N, 2] = np.arange(i, i + N)
-
-    ixcell_glob[i : i + N, :] = dt["_ixcell"][mask, :]
-    hilbert_keys_glob[i : i + N] = dt["_hilbert_key"][mask.flatten()].astype(np.uint64)
-    cpu_map_glob[i : i + N] = dt["cpu_map"][mask]
-    itmp = np.array([[1] * 8])
-    lvl_glob[i : i + N] = (dt["_level"][:, None] + itmp)[mask]
-    son_glob[i : i + N] = dt["son"][mask]
-    i += N
-
-Noct_tot = i
 
 # %% [markdown]
 # Recompute CPU map using new keys
@@ -498,8 +470,6 @@ elif args.remap == "linear":
     new_bound_keys = np.linspace(0, dt["bound_keys"][-1], CONFIG["new_ncpu"] + 1)
 else:
     raise NotImplementedError(f"Remap method {args.remap} has not been implemented.")
-
-cpu_map_new = np.searchsorted(new_bound_keys, hilbert_keys_glob, side="left")
 
 # %%
 oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG["new_ncpu"])
@@ -536,6 +506,7 @@ for icpu, dt in tqdm(data.items(), desc="Adding grids to tree"):
 
 print(f"Inserted {N2} octs")
 
+
 # %%
 # oct.print_tree(3, print_neighbours=True)
 
@@ -551,10 +522,6 @@ np.testing.assert_allclose(
     ),
     3,
 )
-
-# %%
-icell, igrid = np.unravel_index(dt["nbor"][1:] - ncoarse, (8, ngridmax))
-np.round(dt["xc"][igrid - 1] * bscale).astype(np.int64)
 
 
 def set_neighbours(icpu, dt):
@@ -740,6 +707,13 @@ def write_amr_file(headers, amr_struct, amr_file):
 
 
 # %%
+
+# %%
+
+# Count the total number of octs
+Noct_tot = oct.count_octs()
+
+# Create AMR structure
 new_data = {}
 for new_icpu in range(1, CONFIG["new_ncpu"] + 1):
     bk_low = new_bound_keys[new_icpu - 1]
