@@ -449,7 +449,7 @@ for icpu, dt in data.items():
     if args.quadhilbert:
         N = cpu_map.size
 
-        assert np.where(cpu_map != cpu_map_with_keys).sum() < (N / 10_000)
+        assert (cpu_map != cpu_map_with_keys).sum() < (N / 10_000)
     else:
         assert np.all(cpu_map == cpu_map_with_keys)
 
