@@ -1135,6 +1135,8 @@ cdef class Octree:
         all_octs.visit_all_octs(copy_flag2_in_flag1, traversal='breadth_first')
 
         # print('Ensure AMR structure is complete')
+        # selected_octs.visit_all_octs(select_parents, traversal='breadth_first')
+        # all_octs.visit_all_octs(copy_flag2_in_flag1)
 
         # Count number of selected octs
         cdef CountVisitor counter = CountVisitor(0)
