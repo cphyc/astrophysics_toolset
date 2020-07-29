@@ -28,7 +28,7 @@ search: True
 requirements:
   - Requirements.txt:
       # update all dependencies and pin them
-      update: all
+      update: insecure
       pin: True
 
 # add a label to pull requests, default is not set
