@@ -1,7 +1,6 @@
 """Perform operations on n-dimensional fields."""
 
 import numpy as np
-from scipy.special import spherical_jn
 
 from .funcs import j1_over_x
 
@@ -67,7 +66,6 @@ def top_hat_filter(i, R):
         axis=0,
     )
     kR = np.linalg.norm(kgrid, axis=0) * R
-    i0 = np.unravel_index(0, kR.shape)
 
     W = 3 * j1_over_x(kR)
 
