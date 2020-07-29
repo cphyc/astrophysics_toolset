@@ -1,4 +1,5 @@
 import re
+import yorick
 
 from ..utilities.decorators import read_files
 from ..utilities.logging import logger
