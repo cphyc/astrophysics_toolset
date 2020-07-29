@@ -7,7 +7,10 @@ python:
   - 3.6
 
 # Command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
-install: pip install -U tox-travis
+install: 
+  - |
+    pip install -r Requirements.txt
+    pip install -U tox-travis
 
 # Command to run tests, e.g. python setup.py test
 script: tox
@@ -18,10 +21,10 @@ script: tox
 # $ travis encrypt --add deploy.password
 deploy:
   provider: pypi
-  distributions: sdist bdist_wheel
-  user: cphyc
+  distributions: sdist
+  user: __token__
   password:
-    secure: HFHtsUyDPJgqhKoCT0HfkRPls0fDxr/2U+oBQpcQVoAv+1Sv8o/P3fxM5q7P6MxFt6Gm54FeZ1DDFn4kQuBpVXbctTYfq93hZXm2hTK9tnAmvScPR8jav0ZK7aQuFPHOUNbjeNZ6c1oET9dUVN5DbwNYfjYrV9oTZuo43omw09I5fX9ytXntAvAH/xacYVDEyxidp0rPXEBY1Op4SE0g1tpsqPB3wuR65zNXEdaUCXbohIaaQ5Ayr+c+S9u55cjJz0Lu0wJAK530+7CCZkvi4zHx/fElPFAN2tewoWI8+BrhMH226+muaFExTJFiqoqUCsm5MdyV+1bFy604tLj8MEIBkpjD1v7v7oqsEEGPDPrzwKDtNM89P1hF6l99wTfY+vPI2xtLWsPQIxIWIjoxIvFeT+Wn8LCtMdNwBQm96WBL0+BJd3ur1dDZja0Y4y7VhCdc809TDyv9Uc/oEloIcB/ZXet1uYIDLhaJPJNj/PJC4bi/pnuCdjGn/oFGY8sLbSTY6/lueCP6ekTSQdYmoleqz32BMOGHCpBkjG7rnIalfQ5AueR7NJpETJGO7pZAzFURFLwXB7SNVTGJNO5tQxKXhD5XCBFPrJNIhsq5K8dAYWc7Aw9OCdHWnUj7s3NbAzzzXcAxzaOE7+sVKN+6c42XSK6UX/cEIKiTxiMh/Og=
+    secure: sZNVn05vkSfi6Ia30gMXi/TKEb38ATPJeIBkP1a28DghQ67vPhHtTJNGAr2j1jgoSKnG4zVHdeKC24VVNLvnMrbDsgE0zBEC45Q66ZWxF0fSIoJrm3YJAaDqFexNTeCNyAgf9qnyFHomCUTtJs+TCsYqaMBdEgqpqkfHLb2WCd2m7xlxR0Qu4XlAhtJ+JFF4cbMuQG3ZQ+qSAg+Cx7lp/V/uHuMf0P538CXg4/jTikgTYWlewoGY/bZhYmBvRIK3EB3kXSKAAyHPiSmV8uwRuUEuaZXBNlz8ta1FZAJb5OsVfwA88QP/4xLdi+V7OP9rz5uT0Org3PVnSnRM6kQ5O9jRW2IadTro6JMBHCsmx5EeiIetC3h7eu8nPshg+z00PtdVzhQhrmSaUTtHP8/S0OVaKzipTAu1b6FDIfpxTD/pBgQxG6TaDdLkfzLyyM9xIehFZ0MWP9te34B5idXmhHNACFt2wjpl40roXNbkhBt7Q73gAZwl5UdrEqVEv4eZQhgZL01lK6mh1BqfsNoSXlJXfN2zglHP80ujPWi7cu/fQ2ntos0528K8yflIdR/lR7RYlmGItziqawVChRespnMZsPvawXAYo8nnoEkzSKYtWxigL0vV21+cAxAOYb9WPK/BnMfGMuyI4BPDT/oqj6MiuDXUOnM+/JytgU1mrAo=
   on:
     tags: true
     repo: cphyc/astrophysics_toolset

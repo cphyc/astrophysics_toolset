@@ -1,7 +1,9 @@
 cimport numpy as np
+
 import numpy as np
 
 cimport cython
+
 
 cdef np.uint64_t[:, :, ::1] state_diagram = np.array([
     1, 2, 3, 2, 4, 5, 3, 5,
