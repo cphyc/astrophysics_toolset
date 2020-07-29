@@ -23,6 +23,7 @@ import os
 import shutil
 import sys
 from collections import defaultdict
+
 # %%
 from glob import glob
 
@@ -60,8 +61,12 @@ parser = argparse.ArgumentParser()
 # parser.add_argument('--input', type=str, default='/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt',
 #     help='Input file'
 # )
-parser.add_argument("--input", default="output_00002/info_00002.txt")
-parser.add_argument("--output-dir", type=str, default="change_ncpu/new_output")
+parser.add_argument(
+    "--input", required=True, type=str, help="Path to intut info_xxxx.txt file"
+)
+parser.add_argument(
+    "--output-dir", required=True, type=str, default="Path where to write the output"
+)
 parser.add_argument("--ncpu", type=int, default=4, help="The desired number of CPUs")
 parser.add_argument(
     "--longint",
