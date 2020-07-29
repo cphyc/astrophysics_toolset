@@ -1,8 +1,10 @@
 Sphinx==3.1.2
+black~=19.10
 bump2version==1.0.0
 coverage==5.1
 cython==0.29.14
 flake8==3.8.3
+isort==5.1.4
 mpmath==1.1.0
 numpy==1.17.5
 pip==20.1.1
