@@ -29,7 +29,7 @@ cdef struct Oct:
     np.int64_t new_domain_ind # new domain
     np.uint8_t flag1[8]       # attribute for selection
     np.uint8_t flag2[8]       # temporary flag2
-    int128_t hilbert_key[8]
+    np.float64_t hilbert_key[8]
     np.int32_t refmap[8]
 
     Oct* parent
@@ -290,6 +290,7 @@ cdef class HilbertVisitor(Visitor):
 
     cdef void visit(self, Oct *o):
         cdef np.uint64_t lvl
+        cdef np.float64_t hk
         cdef int128_t ishift, order_min, order_max
         cdef int i
 
@@ -298,7 +299,7 @@ cdef class HilbertVisitor(Visitor):
 
         for i in range(8):
             hk = o.hilbert_key[i]
-            order_min = hk >> ishift
+            order_min = (<int128_t> hk) >> ishift
             order_max = (order_min + 1) << ishift
             order_min <<= ishift
 
@@ -853,7 +854,7 @@ cdef class Octree:
                   const np.int64_t[::1] domain_ind,
                   const np.int64_t[::1] new_domain_ind,
                   const np.int64_t[::1] owning_cpu,
-                  const np.uint64_t[:, ::1] hilbert_key,
+                  const np.float64_t[:, ::1] hilbert_key,
                   const np.int32_t[:, ::1] refmap, 
                   const np.int64_t[::1] lvl):
         cdef int N, i, ilvl

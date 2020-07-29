@@ -436,18 +436,15 @@ for icpu, dt in data.items():
     ).astype(int)
     dt["_ixgrid"] = (dt["xc"][:, None, :] * bscale).astype(int)
     dt["_ixcell"] = ixcell
-    dt["_hilbert_key"] = hilbert3d(ixcell.reshape(-1, 3), bit_length).astype(np.uint64)
-    dt["_hilbert_key_grid"] = hilbert3d(
-        dt["_ixgrid"].reshape(-1, 3), bit_length
-    ).astype(np.uint64)
+    dt["_hilbert_key"] = hilbert3d(ixcell.reshape(-1, 3), bit_length)
+    dt["_hilbert_key_grid"] = hilbert3d(dt["_ixgrid"].reshape(-1, 3), bit_length)
 
     cpu_map = dt["cpu_map"].reshape(-1)
     cpu_map_with_keys = np.searchsorted(
         dt["bound_keys"], dt["_hilbert_key"], side="left"
     )
-    # assert np.all(cpu_map == cpu_map_with_keys)
 
-    # assert np.allclose(dt['_hilbert_key'], hilbert3d(ixcell.reshape(-1, 3), bit_length))
+    assert np.all(cpu_map == cpu_map_with_keys)
 
     dt["_ind_cell"] = dt["ind_grid"][:, None] + ii[None, :]
 
@@ -708,8 +705,6 @@ def write_amr_file(headers, amr_struct, amr_file):
 
 # %%
 
-# %%
-
 # Count the total number of octs
 Noct_tot = oct.count_octs()
 
@@ -831,16 +826,6 @@ for l in new_data[1]["numbl"]:
 
 # %%
 oct.check_tree(999)
-
-# %%
-dt = data[1]
-
-# %%
-ds.min_level
-
-# %%
-dt["_level_cell"].max()
-
 
 # %% [markdown]
 # Now write hydro
