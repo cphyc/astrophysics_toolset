@@ -482,6 +482,10 @@ elif args.remap == "linear":
 else:
     raise NotImplementedError(f"Remap method {args.remap} has not been implemented.")
 
+# Round the new keys to 64-bit floating precision
+original_dtype = new_bound_keys.dtype
+new_bound_keys = (new_bound_keys.astype(np.float64)).astype(original_dtype)
+
 # %%
 oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG["new_ncpu"])
 N2 = 1
