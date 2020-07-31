@@ -1267,14 +1267,14 @@ cdef class Octree:
                     if it != end:
                         nbor[i, j, 0] = deref(it).second
                     else:
-                        raise Exception(f'Could not set {i}.nbor[{j}] ({nbor[i,j,0]})')
+                        print(f'Could not set {i}.nbor[{j}] ({nbor[i,j,0]})')
+                        nbor[i, j, 0] = -1  # compensate for ncoarse
+                        nbor[i, j, 1] = 0
             for j in range(8):
                 it = global_to_local.find(son[i, j])
                 if it != end:
-                    # if dbg: print(f'Could set {i}.child[{j}]->{deref(it).second} ({son[i,j]})')
                     son[i, j] = deref(it).second
                 else:
-                    # if dbg: print(f'Could not set {i}.child[{j}] ({son[i,j]})')
                     son[i, j] = 0
             it = global_to_local.find(parent[i, 0])
             if it != end:
