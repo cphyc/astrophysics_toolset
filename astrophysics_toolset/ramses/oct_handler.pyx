@@ -1020,7 +1020,7 @@ cdef class Octree:
         cdef Oct* neigh
         cdef np.uint8_t ichild
 
-        for i in prange(N, nogil=True):
+        for i in prange(N, nogil=True, schedule="static"):
             o = self.get(&ipos[i, 0], ilvl[i])
             if o == NULL:
                 with gil:
