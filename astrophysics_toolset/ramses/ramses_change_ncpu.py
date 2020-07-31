@@ -1052,7 +1052,6 @@ def particle_file_writer(fname, particle_new_domain, headers, data_old, new_icpu
 
     # Extract fields
     fields = data_old[1].keys()
-    print()
 
     with FF(fname, mode="w") as fout:
         h = headers.copy()
