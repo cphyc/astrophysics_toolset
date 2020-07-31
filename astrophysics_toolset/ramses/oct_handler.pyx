@@ -1020,10 +1020,14 @@ cdef class Octree:
         cdef Oct* neigh
         cdef np.uint8_t ichild
 
-        for i in range(N):
+        for i in prange(N, nogil=True):
             o = self.get(&ipos[i, 0], ilvl[i])
             if o == NULL:
-                print('This should not happen.')
+                with gil:
+                    raise Exception(
+                        'Could not find oct at position %s,%s,%s, level=%s.' % 
+                        (ipos[i, 0], ipos[i, 1], ipos[i, 2], ilvl[i])
+                    )
             for j in range(6):
                 neigh = self.get(
                     &neigh_pos[i, j, 0],
