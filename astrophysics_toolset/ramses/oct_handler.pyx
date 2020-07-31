@@ -557,6 +557,17 @@ cdef class CountNeighbourCellFlaggedVisitor(Visitor):
             o = parent
             parent = parent.parent
 
+cdef class SetFlag1(Visitor):
+    def __cinit__(self):
+        self.parallel_friendly = True
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cdef void visit(self, Oct* o, OctInfo* oi) nogil:
+        cdef int i
+        for i in range(8):
+            o.flag1[i] = 1
+
 cdef class SetFlag2FromFlag1(Visitor):
     def __cinit__(self):
         self.parallel_friendly = True
@@ -1070,6 +1081,12 @@ cdef class Octree:
 
         return counter.count
 
+    def select_level(self, int level_max):
+        cdef LevelSelector sel = LevelSelector(self, level_max)
+        cdef SetFlag1 set_flag1 = SetFlag1()
+
+        sel.visit_all_octs(set_flag1, traversal='breadth_first')
+
     def select_hilbert(self, bk_low, bk_up):
         cdef AllOctsSelector all_octs = AllOctsSelector(self)
         cdef HilbertVisitor select_hilbert = HilbertVisitor()
@@ -1080,9 +1097,9 @@ cdef class Octree:
         print(f'\thilbert key at boundary: {select_hilbert.bk_low} {select_hilbert.bk_up}')
         all_octs.visit_all_octs(select_hilbert, traversal='breadth_first')
 
-    # @cython.boundscheck(False)
-    # @cython.wraparound(False)
-    def domain_info(
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def expand_boundaries(
             self,
             int idomain,
             int nexpand=1
@@ -1138,6 +1155,13 @@ cdef class Octree:
         selected_octs.visit_all_octs(select_parents, traversal='breadth_first')
         all_octs.visit_all_octs(copy_flag2_in_flag1)
 
+    @cython.wraparound(False)
+    @cython.boundscheck(False)
+    def extract_data(self):
+        """Assuming all the relevant cells have been flagged in flag1,
+        build and return the AMR structure"""
+        cdef int Noct
+        cdef FlaggedOctSelector selected_octs = FlaggedOctSelector(self)
         # Count number of selected octs
         cdef CountVisitor counter = CountVisitor(0)
         selected_octs.visit_all_octs(counter)
@@ -1185,7 +1209,7 @@ cdef class Octree:
         # - lvl    : the level of the oct
 
         # We need now to reorder the domains in each lvl
-        cdef int ilvl, i0
+        cdef int ilvl, i0, i
         cdef np.int64_t[::1] order
         i0 = 0
         i = 0
