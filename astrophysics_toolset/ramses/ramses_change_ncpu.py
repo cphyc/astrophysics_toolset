@@ -93,13 +93,13 @@ parser.add_argument(
 )
 parser.add_argument(
     "--remap",
-    choices=["interp", "linear"],
-    default="interp",
-    help=(
-        'Strategy to compute the new refinement map. If "interp", linearly '
-        'interpolate the new hilbert keys from the old map.action. If "linear", '
-        "regularly space the keys."
-    ),
+    choices=("at_boundaries", "interp", "linear"),
+    default="at_boundaries",
+    help="""Choice of Strategy to compute the new refinement map (default: %(default)s).
+        *at_boundaries*: the new domains will be at the old domain boundaries.
+        *interp*: linearly interpolate the new hilbert keys from the old map.
+        *linear*: regularly space the keys.
+    """,
 )
 
 try:  # in notebook
@@ -479,6 +479,12 @@ if args.remap == "interp":
     )
 elif args.remap == "linear":
     new_bound_keys = np.linspace(0, dt["bound_keys"][-1], CONFIG["new_ncpu"] + 1)
+elif args.remap == "at_boundaries":
+    new_ncpu = CONFIG["new_ncpu"]
+    old_bound_keys = dt["bound_keys"]
+
+    cpu_ind = np.round(np.linspace(0, 1, new_ncpu + 1) * old_ncpu).astype(int)
+    new_bound_keys = old_bound_keys[cpu_ind]
 else:
     raise NotImplementedError(f"Remap method {args.remap} has not been implemented.")
 
@@ -734,11 +740,6 @@ for new_icpu in range(1, CONFIG["new_ncpu"] + 1):
 
     print(f'Selecting grid intersecting with new cpu #{new_icpu}/{CONFIG["new_ncpu"]}')
 
-    oct.clear_paint()
-
-    # Select cells that intersect with domain
-    oct.select_hilbert(bk_low, bk_up)
-
     # for icpu, dt in tqdm(data.items(), desc='Selecting cells'):
     #     lvl = dt['_level_cell'].astype(np.uint8).flatten()[ncoarse*8:]
     #     hkg = dt['_hilbert_key'].astype(np.uint64)[ncoarse*8:]
@@ -761,7 +762,30 @@ for new_icpu in range(1, CONFIG["new_ncpu"] + 1):
 
     ###########################################################
     # Amr structure
-    amr_struct = oct.domain_info(new_icpu, nexpand=args.nexpand)
+    oct.clear_paint()
+    if args.remap == "at_boundaries":
+        old_icpu_list = list(range(1 + cpu_ind[new_icpu - 1], 1 + cpu_ind[new_icpu]))
+        print(new_icpu, old_icpu_list)
+
+        if len(old_icpu_list) == 0:
+            oct.select_level(ds.min_level)
+            oct.expand_boundaries(new_icpu, nexpand=args.nexpand)
+        # Loop over old domains and select the cells in them
+        for dt in (data[_] for _ in old_icpu_list):
+            xc = dt["xc"]
+            lvl = dt["_level"].astype(np.int64)[1:]
+            igrid0 = dt["ind_grid"][1:]
+            ixc = (xc[igrid0 - 1] * bscale).astype(np.int64).copy()
+
+            oct.select(ixc, lvl)
+    else:
+        # Select cells that intersect with domain
+        oct.select_hilbert(bk_low, bk_up)
+        oct.expand_boundaries(new_icpu, nexpand=args.nexpand)
+
+    # Extract structure
+    amr_struct = oct.extract_data()
+
     file_inds = amr_struct["file_ind"]
     nocts = len(file_inds)
 
