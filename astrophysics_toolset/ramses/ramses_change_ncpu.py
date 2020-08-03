@@ -106,7 +106,7 @@ def rawQuadToDouble(raw: bytes):
     return sign * significand * 2.0 ** (exponent - 112)
 
 
-def read_amr(amr_file, longint, quadhilbert):
+def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
     i8b = "l" if longint else "i"
     qdp = "float128" if quadhilbert else "float64"
     dp = "float64"
@@ -286,14 +286,14 @@ def read_amr(amr_file, longint, quadhilbert):
         return ret
 
 
-def read_all_amr_files(dirname: str):
+def read_all_amr_files(dirname: str, longint: bool, quadhilbert: bool):
     pattern = os.path.join(dirname, "amr_?????.out?????")
     amr_files = sorted(glob(pattern))
 
     data = {}
     for i, amr_file in enumerate(tqdm(amr_files, desc="Reading AMR")):
         icpu = int(amr_file.split(".out")[1])
-        data[icpu] = read_amr(amr_file)  # CPU are indexed by one
+        data[icpu] = read_amr(amr_file, longint, quadhilbert)  # CPU are indexed by one
     return data
 
 
@@ -328,7 +328,7 @@ def main():
     default_headers = {"ramses": {}, "gravity": {"nvar": 4}}
 
     path = os.path.split(ds.parameter_filename)[0]
-    data = read_all_amr_files(path)
+    data = read_all_amr_files(path, args.longint, args.quadhilbert)
 
     nlevelmin = ds.parameters["levelmin"]
     nlevelmax = data[1]["headers"]["nlevelmax"]
