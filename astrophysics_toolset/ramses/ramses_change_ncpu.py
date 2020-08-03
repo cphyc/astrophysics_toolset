@@ -483,8 +483,20 @@ elif args.remap == "at_boundaries":
     new_ncpu = CONFIG["new_ncpu"]
     old_bound_keys = dt["bound_keys"]
 
-    cpu_ind = np.round(np.linspace(0, 1, new_ncpu + 1) * old_ncpu).astype(int)
-    new_bound_keys = old_bound_keys[cpu_ind]
+    icpu_ind = np.floor(np.linspace(0, 1, new_ncpu + 1) * old_ncpu).astype(int)
+    old_cpu_to_new_cpu = np.array(
+        [
+            np.argwhere(icpu_ind == icpu)[0, 0] + 1 if icpu in icpu_ind else 0
+            for icpu in range(old_ncpu)
+        ]
+    )
+    new_bound_keys = old_bound_keys[icpu_ind]
+    old_cpu_to_new_cpu = np.zeros(old_ncpu, dtype=np.int64)
+
+    for i in range(old_ncpu):
+        # Find first key in the new keys that's largest than current
+        up_key = dt["bound_keys"][i]
+        old_cpu_to_new_cpu[i] = np.argwhere(new_bound_keys > up_key).flatten()[0]
 else:
     raise NotImplementedError(f"Remap method {args.remap} has not been implemented.")
 
@@ -502,14 +514,20 @@ for icpu, dt in tqdm(data.items(), desc="Adding grids to tree"):
     domain_ind = np.searchsorted(
         dt["bound_keys"], dt["_hilbert_key_grid"][mask], side="left"
     )
-    new_domain_ind = np.searchsorted(
-        new_bound_keys, dt["_hilbert_key_grid"][mask], side="left"
-    )
-    dt["_new_cpu_map"] = (
-        np.searchsorted(new_bound_keys, dt["_hilbert_key"], side="left")
-        .astype(np.int32)
-        .reshape(-1, 8)
-    )
+    if args.remap == "at_boundaries":
+        new_domain_ind = old_cpu_to_new_cpu[domain_ind - 1]
+        new_cpu_map = old_cpu_to_new_cpu[dt["cpu_map"] - 1]
+    else:
+        new_domain_ind = np.searchsorted(
+            new_bound_keys, dt["_hilbert_key_grid"][mask], side="left"
+        )
+        new_cpu_map = (
+            np.searchsorted(new_bound_keys, dt["_hilbert_key"], side="left")
+            .astype(np.int32)
+            .reshape(-1, 8)
+        )
+
+    dt["_new_cpu_map"] = new_cpu_map
 
     lvl_ind = dt["_level"][mask].astype(np.int64)
 
@@ -526,7 +544,6 @@ for icpu, dt in tqdm(data.items(), desc="Adding grids to tree"):
     )
 
 print(f"Inserted {N2} octs")
-
 
 # %%
 # oct.print_tree(3, print_neighbours=True)
@@ -764,11 +781,11 @@ for new_icpu in range(1, CONFIG["new_ncpu"] + 1):
     # Amr structure
     oct.clear_paint()
     if args.remap == "at_boundaries":
-        old_icpu_list = list(range(1 + cpu_ind[new_icpu - 1], 1 + cpu_ind[new_icpu]))
+        old_icpu_list = list(range(1 + icpu_ind[new_icpu - 1], 1 + icpu_ind[new_icpu]))
         print(new_icpu, old_icpu_list)
 
         if len(old_icpu_list) == 0:
-            dt = data[1 + cpu_ind[new_icpu - 1]]
+            dt = data[icpu_ind[new_icpu - 1] + 1]
             all_lvl = dt["_level"].astype(np.int64)[1:]
             mask = all_lvl <= ds.min_level + 1
             lvl = all_lvl[mask]
