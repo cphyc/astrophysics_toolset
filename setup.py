@@ -54,7 +54,7 @@ setup(
     entry_points={
         "console_scripts": [
             "astrophysics_toolset=astrophysics_toolset.cli:main",
-            "ramses_change_ncpu=astrophysics_toolset.ramses.ramses_change_ncpu",
+            "ramses_change_ncpu=astrophysics_toolset.ramses.ramses_change_ncpu:main",
         ],
     },
     install_requires=requirements,
