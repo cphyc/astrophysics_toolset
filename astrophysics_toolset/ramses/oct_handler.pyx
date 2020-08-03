@@ -1266,7 +1266,7 @@ cdef class Octree:
                     if it != end:
                         nbor[i, j, 0] = deref(it).second
                     else:
-                        print(f'Could not set {i}.nbor[{j}] ({nbor[i,j,0]})')
+                        # print(f'Could not set {i}.nbor[{j}] ({nbor[i,j,0]})')
                         nbor[i, j, 0] = -1  # compensate for ncoarse
                         nbor[i, j, 1] = 0
             for j in range(8):
