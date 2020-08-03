@@ -768,8 +768,16 @@ for new_icpu in range(1, CONFIG["new_ncpu"] + 1):
         print(new_icpu, old_icpu_list)
 
         if len(old_icpu_list) == 0:
-            oct.select_level(ds.min_level)
-            oct.expand_boundaries(new_icpu, nexpand=args.nexpand)
+            dt = data[1 + cpu_ind[new_icpu - 1]]
+            all_lvl = dt["_level"].astype(np.int64)[1:]
+            mask = all_lvl <= ds.min_level + 1
+            lvl = all_lvl[mask]
+            xc = dt["xc"]
+            igrid0 = dt["ing_grid"][1:][mask]
+
+            ixc = (xc[igrid0 - 1] * bscale).astype(np.int64).copy()
+
+            oct.select(ixc, lvl)
         # Loop over old domains and select the cells in them
         for dt in (data[_] for _ in old_icpu_list):
             xc = dt["xc"]
