@@ -1,5 +1,4 @@
 import distutils.spawn
-import os
 
 import numpy as np
 import pytest
