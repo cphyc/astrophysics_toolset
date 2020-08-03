@@ -17,7 +17,7 @@ requirements = [
     "numpy>=1.10",
     "kaitaistruct>=0.8",
     "numba>=0.40",
-    "cython-fortran-file>=0.2.1",
+    "cython-fortran-file>=0.2.2",
     "yt>=3.6",
 ]
 setup_requirements = [
