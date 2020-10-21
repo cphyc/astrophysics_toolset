@@ -156,3 +156,23 @@ def fix_glyph_errors(ax=None):
         for label in ax.get_yminorticklabels()
     ]
     ax.set_yticklabels(labels, minor=True)
+
+
+def adjust_lightness(color, amount=0.5):
+    """Adjust the lightness of a colour.
+
+    Parameters
+    ----------
+    color : matplotlib color ("black", "C0", etc.) or RGB(A) value
+    amount : float
+        Amplitude of the adjustment. If <1, will darken and if >1, will lighten.
+    """
+    import matplotlib.colors as mc
+    import colorsys
+
+    try:
+        c = mc.cnames[color]
+    except KeyError:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
