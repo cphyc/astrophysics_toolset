@@ -1003,6 +1003,8 @@ def main():
                 shutil.copy(original_fname, fname)
             progress.update()
 
+        new_bound_keys = amr_structure[1]["bound_keys"]
+
         for i, ph in enumerate(particle_handlers):
             if ph.ptype == "sink":
                 continue
@@ -1022,9 +1024,7 @@ def main():
                 )
                 ipos = np.round(pos * bscale).astype(np.int64)
                 particle_new_domain[icpu + 1] = np.searchsorted(
-                    amr_structure[1]["bound_keys"],
-                    hilbert3d(ipos, bit_length),
-                    side="left",
+                    new_bound_keys, hilbert3d(ipos, bit_length), side="left",
                 )
 
             # Need to update the number of cpus in the headers
