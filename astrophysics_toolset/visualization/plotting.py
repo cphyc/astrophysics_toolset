@@ -176,3 +176,25 @@ def adjust_lightness(color, amount=0.5):
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
+
+def colorbar(mappable, ax=None):
+    """Add a colorbar attached to the mappable, using the `make_axes_locatable` API
+
+    Adapted from https://joseph-long.com/writing/colorbars/
+    """
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    import matplotlib.pyplot as plt
+
+    try:
+        # Save previous current axis
+        last_axes = plt.gca()
+        ax = mappable.axes if ax is None else ax
+        fig = ax.figure
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(mappable, cax=cax)
+    finally:
+        # Restore previous current axis
+        plt.sca(last_axes)
+    return cbar
