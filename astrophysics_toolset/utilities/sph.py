@@ -47,10 +47,11 @@ def create_sph_fields(
         ]
     data[ptype, "particle_mass"] = data_source[ptype, "particle_mass"]
 
+    L, R = data_source.get_bbox()
     periodicity = (
         np.asarray(ds.periodicity)
-        & (ds.domain_left_edge == data_source.left_edge)
-        & (ds.domain_right_edge == data_source.right_edge)
+        & (ds.domain_left_edge == L)
+        & (ds.domain_right_edge == R)
     )
 
     logger.debug("Create particle dataset")
