@@ -2,11 +2,48 @@
 requires = [
    "setuptools>=19.6",
    "wheel",
-   "Cython>=0.26.1",
-   "numpy>=1.17.5"
+   "Cython>=0.29.21",
+   "numpy>=1.19.2"
 ]
 
 [tool.black]
 line-length = 88
 target-version = ['py36', 'py37', 'py38']
 include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+
+[tool.isort]
+profile = "black"
+combine_as_imports = true
+skip =  []
+known_third_party = [
+  "IPython",
+  "nose",
+  "numpy",
+  "sympy",
+  "matplotlib",
+  "unyt",
+  "git",
+  "yaml",
+  "dateutil",
+  "requests",
+  "coverage",
+  "pytest",
+  "pyx",
+  "glue",
+  "yt"
+]
+known_first_party = ["astrophysics_toolset"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
