@@ -5,6 +5,8 @@ from yt.data_objects.selection_objects.data_selection_objects import (
 )
 from yt.data_objects.static_output import Dataset
 
+from ..utilities.logging import logger
+
 
 def create_sph_fields(
     data_source: YTSelectionContainer, ptype: str = "all", *args, **kwargs
@@ -31,16 +33,28 @@ def create_sph_fields(
         ds.add_sph_fields(*args, **kwargs)
         return ds
 
+    logger.debug("Loading data from data source")
     data = {
-        (ftype, fname): data_source[ftype, fname]
-        for (ftype, fname) in ds.derived_field_list
-        if ftype == ptype
+        (ptype, fname): data_source[ftype, fname]
+        for (ftype, fname) in ds.field_list
+        if (ftype == ptype) and (data_source[ftype, fname].ndim == 1)
     }
+
+    # Make sure position and masses are copied
+    for k in "xyz":
+        data[ptype, f"particle_position_{k}"] = data_source[
+            ptype, f"particle_position_{k}"
+        ]
+    data[ptype, "particle_mass"] = data_source[ptype, "particle_mass"]
+
     periodicity = (
         np.asarray(ds.periodicity)
         & (ds.domain_left_edge == data_source.left_edge)
         & (ds.domain_right_edge == data_source.right_edge)
     )
 
+    logger.debug("Create particle dataset")
     sph_ds = yt.load_particles(data, data_source=data_source, periodicity=periodicity)
-    sph_ds.add_sph_fields()
+    sph_ds.add_sph_fields(*args, **kwargs, sph_ptype=ptype)
+
+    return sph_ds
