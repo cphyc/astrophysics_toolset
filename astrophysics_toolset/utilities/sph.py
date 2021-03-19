@@ -45,6 +45,8 @@ def create_sph_fields(
             ptype, f"particle_position_{k}"
         ]
     data[ptype, "particle_mass"] = data_source[ptype, "particle_mass"]
+    data[ptype, "particle_identity"] = data_source[ptype, "particle_identity"]
+    data[ptype, "particle_family"] = data_source[ptype, "particle_family"]
 
     periodicity = (True, True, True)
     # No support for aperiodicity for now
@@ -57,6 +59,7 @@ def create_sph_fields(
 
     logger.debug("Create particle dataset")
     sph_ds = yt.load_particles(data, data_source=data_source, periodicity=periodicity)
+    sph_ds.current_redshift = ds.current_redshift  # Copy current redshift
     sph_ds.add_sph_fields(*args, **kwargs, sph_ptype=ptype)
 
     return sph_ds
