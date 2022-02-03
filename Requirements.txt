@@ -9,7 +9,7 @@ kaitaistruct>=0.8
 matplotlib<=3.2
 mpmath==1.1.0
 numba==0.50.1
-numpy==1.19.1
+numpy==1.22.1
 pip==21.1
 pre-commit==2.6.0
 pyorick==1.4
