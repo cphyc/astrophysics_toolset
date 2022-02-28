@@ -25,8 +25,9 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        sudo apt install yorick
-        python -m pip install --upgrade pip
+        sudo apt-get -qqy update
+        sudo apt-get -qqy install yorick
+        python -m pip install --upgrade pip wheel
         python -m pip install .[test]
     - name: Test with pytest
       run: |
