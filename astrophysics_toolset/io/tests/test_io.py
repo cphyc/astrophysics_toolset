@@ -1,11 +1,11 @@
-import distutils.spawn
+from shutil import which
 
 import numpy as np
 import pytest
 
 from ..yorick import PDBReader
 
-SKIP_YORICK = distutils.spawn.find_executable("yorick") is None
+SKIP_YORICK = which("yorick") is None
 SKIP_YORICK_REASON = "Could not find yorick executable. Skipping tests."
 
 
@@ -17,8 +17,7 @@ def pdb():
 def walker_helper(keys, root):
     for key, val in root.items():
         if isinstance(val, dict):
-            for _ in walker_helper(keys + [key], val):
-                yield _
+            yield from walker_helper(keys + [key], val)
         else:
             if isinstance(val, tuple):
                 exp_type = val[0]
@@ -27,7 +26,9 @@ def walker_helper(keys, root):
             yield keys + [key], exp_type
 
 
-def deep_dict_compare(a, b, prefix=[], print_pre=""):
+def deep_dict_compare(a, b, prefix=None, print_pre=""):
+    if prefix is None:
+        prefix = []
     assert len(a) == len(b)
 
     key_a = set(a.keys())
@@ -40,17 +41,15 @@ def deep_dict_compare(a, b, prefix=[], print_pre=""):
         print(print_pre, end="")
         vb = b[key]
         if type(va) != type(vb):
-            raise AssertionError("Type differ at %s[%s]" % (prefix, key))
+            raise AssertionError(f"Type differ at {prefix}[{key}]")
 
         if isinstance(va, dict):
             print("checking key «%s»" % key)
             deep_dict_compare(va, vb, prefix + [key], print_pre + "\t")
         else:
-            print("comparing %s %s" % (prefix, key), end="...")
+            print(f"comparing {prefix} {key}", end="...")
             if va != vb:
-                raise AssertionError(
-                    "Value differ at %s[%s], %s ≠ %s" % (prefix, key, va, vb)
-                )
+                raise AssertionError(f"Value differ at {prefix}[{key}], {va} ≠ {vb}")
             print("ok!")
 
 

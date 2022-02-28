@@ -3,12 +3,12 @@ requires = [
    "setuptools>=19.6",
    "wheel",
    "Cython>=0.29.21",
-   "numpy>=1.19.2"
+   "numpy>=1.18,<1.22"
 ]
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38', 'py39']
+target-version = ['py37', 'py38']
 include = '\.pyi?$'
 exclude = '''
 /(
