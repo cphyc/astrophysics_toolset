@@ -26,7 +26,6 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get -qqy update
-        sudo apt-get -qqy install yorick
         python -m pip install --upgrade pip wheel
         python -m pip install -e .[test] -v
     - name: Test with pytest
