@@ -2,20 +2,13 @@
 # however `minimum_pre_commit_version` itself requires 1.15.0
 minimum_pre_commit_version: "1.15.0"
 
-exclude: "^(\
-yt/extern\
-|yt/frontends/stream/sample_data\
-|yt/units\
-|scripts\
-|benchmark\
-|setupext.py\
-|yt/visualization/_colormap_data.py\
-)"
-
 repos:
-
+-   repo: https://github.com/asottile/setup-cfg-fmt
+    rev: v1.20.0
+    hooks:
+    -   id: setup-cfg-fmt
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v4.1.0
     hooks:
     - id: trailing-whitespace
     - id: end-of-file-fixer
@@ -25,7 +18,7 @@ repos:
     rev: v2.10.0
     hooks:
     - id: pyupgrade
-      args: [--py36-plus]
+      args: [--py37-plus]
 -   repo: https://github.com/psf/black
     rev: 20.8b1
     hooks:
@@ -40,7 +33,11 @@ repos:
     rev: '3.8.4'
     hooks:
     - id: flake8
-      additional_dependencies: [mccabe, flake8-bugbear]
+      additional_dependencies: [
+        flake8-bugbear>=21.4.3,
+        flake8-logging-format,
+        flake8-2020==1.6.0,
+      ]
 -   repo: https://github.com/asottile/blacken-docs
     rev: v1.9.2
     hooks:
