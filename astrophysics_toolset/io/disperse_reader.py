@@ -1,6 +1,6 @@
 # This is a generated file! Please edit source .ksy file and use kaitai-struct-compiler to rebuild
 
-from kaitaistruct import BytesIO, KaitaiStream, KaitaiStruct, __version__ as ks_version
+from kaitaistruct import KaitaiStruct, __version__ as ks_version
 from pkg_resources import parse_version
 
 if parse_version(ks_version) < parse_version("0.7"):
@@ -46,33 +46,31 @@ class DisperseReader(KaitaiStruct):
 
         def _read(self):
             self.seg_pos = [None] * (
-                ((2 * self._root.header.ndim) * self._root.header.nseg)
+                (2 * self._root.header.ndim) * self._root.header.nseg
             )
-            for i in range(((2 * self._root.header.ndim) * self._root.header.nseg)):
+            for i in range((2 * self._root.header.ndim) * self._root.header.nseg):
                 self.seg_pos[i] = self._io.read_f4le()
 
             self._unnamed1 = self._io.read_u4le()
             self._unnamed2 = self._io.read_u4le()
-            self.node_pos = [None] * (
-                (self._root.header.ndim * self._root.header.nnode)
-            )
-            for i in range((self._root.header.ndim * self._root.header.nnode)):
+            self.node_pos = [None] * (self._root.header.ndim * self._root.header.nnode)
+            for i in range(self._root.header.ndim * self._root.header.nnode):
                 self.node_pos[i] = self._io.read_f4le()
 
             self._unnamed4 = self._io.read_u4le()
             self._unnamed5 = self._io.read_u4le()
             self.seg_data = [None] * (
-                (self._root.header.nseg * self._root.header.nseg_data)
+                self._root.header.nseg * self._root.header.nseg_data
             )
-            for i in range((self._root.header.nseg * self._root.header.nseg_data)):
+            for i in range(self._root.header.nseg * self._root.header.nseg_data):
                 self.seg_data[i] = self._io.read_f8le()
 
             self._unnamed7 = self._io.read_u4le()
             self._unnamed8 = self._io.read_u4le()
             self.node_data = [None] * (
-                (self._root.header.nnode * self._root.header.nnode_data)
+                self._root.header.nnode * self._root.header.nnode_data
             )
-            for i in range((self._root.header.nnode * self._root.header.nnode_data)):
+            for i in range(self._root.header.nnode * self._root.header.nnode_data):
                 self.node_data[i] = self._io.read_f8le()
 
             self._unnamed10 = self._io.read_u4le()
@@ -112,24 +110,24 @@ class DisperseReader(KaitaiStruct):
             for i in range(self.ndim):
                 self.dims[i] = self._io.read_u4le()
 
-            self._unnamed6 = [None] * ((20 - self.ndim))
-            for i in range((20 - self.ndim)):
+            self._unnamed6 = [None] * (20 - self.ndim)
+            for i in range(20 - self.ndim):
                 self._unnamed6[i] = self._io.read_u4le()
 
             self.x0 = [None] * (self.ndim)
             for i in range(self.ndim):
                 self.x0[i] = self._io.read_f8le()
 
-            self._unnamed8 = [None] * ((20 - self.ndim))
-            for i in range((20 - self.ndim)):
+            self._unnamed8 = [None] * (20 - self.ndim)
+            for i in range(20 - self.ndim):
                 self._unnamed8[i] = self._io.read_f8le()
 
             self.delta = [None] * (self.ndim)
             for i in range(self.ndim):
                 self.delta[i] = self._io.read_f8le()
 
-            self._unnamed10 = [None] * ((20 - self.ndim))
-            for i in range((20 - self.ndim)):
+            self._unnamed10 = [None] * (20 - self.ndim)
+            for i in range(20 - self.ndim):
                 self._unnamed10[i] = self._io.read_f8le()
 
             self.nseg = self._io.read_u4le()

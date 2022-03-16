@@ -25,7 +25,7 @@ class AnchoredScaleBar(AnchoredOffsetbox):
         prop=None,
         barcolor="black",
         barwidth=None,
-        label_kwa={},
+        label_kwa=None,
         **kwargs,
     ):
         """
@@ -45,6 +45,9 @@ class AnchoredScaleBar(AnchoredOffsetbox):
         """
         from matplotlib.offsetbox import AuxTransformBox, HPacker, TextArea, VPacker
         from matplotlib.patches import Rectangle
+
+        if label_kwa is None:
+            label_kwa = {}
 
         bars = AuxTransformBox(transform)
         rect_kwa = {"ec": barcolor, "lw": barwidth, "fc": "none"}
@@ -74,7 +77,7 @@ class AnchoredScaleBar(AnchoredOffsetbox):
 
 
 def add_scalebar(ax, matchx=True, matchy=True, hidex=True, hidey=True, **kwargs):
-    """ Add scalebars to axes
+    """Add scalebars to axes
     Adds a set of scale bars to *ax*, matching the size to the ticks of the
     plot and optionally hiding the x and y axes.
 
@@ -147,12 +150,12 @@ def fix_glyph_errors(ax=None):
             fig.canvas.draw()
     # Remove '\mathdefault' from all minor tick labels
     labels = [
-        label.get_text().replace("\mathdefault", "")
+        label.get_text().replace(r"\mathdefault", "")
         for label in ax.get_xminorticklabels()
     ]
     ax.set_xticklabels(labels, minor=True)
     labels = [
-        label.get_text().replace("\mathdefault", "")
+        label.get_text().replace(r"\mathdefault", "")
         for label in ax.get_yminorticklabels()
     ]
     ax.set_yticklabels(labels, minor=True)
@@ -167,8 +170,9 @@ def adjust_lightness(color, amount=0.5):
     amount : float
         Amplitude of the adjustment. If <1, will darken and if >1, will lighten.
     """
-    import matplotlib.colors as mc
     import colorsys
+
+    import matplotlib.colors as mc
 
     try:
         c = mc.cnames[color]
@@ -183,8 +187,8 @@ def colorbar(mappable, ax=None):
 
     Adapted from https://joseph-long.com/writing/colorbars/
     """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
     import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
 
     try:
         # Save previous current axis

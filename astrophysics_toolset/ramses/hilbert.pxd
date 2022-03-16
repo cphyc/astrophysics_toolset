@@ -1,6 +1,6 @@
 cimport cython
-
 cimport numpy as np
+
 
 cdef extern from *:
     ctypedef int int128_t "__int128_t"

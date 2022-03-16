@@ -1,5 +1,4 @@
 #!/home/ccc/anaconda3/bin/python
-# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -48,7 +47,6 @@ from yt.frontends.ramses.particle_handlers import (
 
 from astrophysics_toolset.ramses.hilbert import hilbert3d
 from astrophysics_toolset.ramses.oct_handler import Octree
-
 
 # %%
 parser = argparse.ArgumentParser()
@@ -291,7 +289,7 @@ def read_all_amr_files(dirname: str, longint: bool, quadhilbert: bool):
     amr_files = sorted(glob(pattern))
 
     data = {}
-    for i, amr_file in enumerate(tqdm(amr_files, desc="Reading AMR")):
+    for amr_file in tqdm(amr_files, desc="Reading AMR"):
         icpu = int(amr_file.split(".out")[1])
         data[icpu] = read_amr(amr_file, longint, quadhilbert)  # CPU are indexed by one
     return data
@@ -343,10 +341,11 @@ def main():
     bscale = int(bscale / scale)
 
     bit_length = -1
-    for bit_length in range(1, 32 + 1):
+    for _bit_length in range(1, 32 + 1):
         ncode = ncode // 2
         if ncode <= 1:
             break
+    bit_length = _bit_length
     # At this stage, we have loaded the AMR structure and we make sure we are able to recompute the CPU map. This will be useful in the future.
     dd = np.array(
         [(i, j, k) for k in (-1, 1) for j in (-1, 1) for i in (-1, 1)]
@@ -785,7 +784,9 @@ def main():
 
     # Now write hydro
 
-    def fluid_file_reader(field_handler: FieldFileHandler, headers: dict = {}):
+    def fluid_file_reader(field_handler: FieldFileHandler, headers: dict = None):
+        if headers is None:
+            headers = {}
         with FF(field_handler.fname, "r") as fin:
             headers.update(fin.read_attrs(field_handler.attrs))
             nvar = headers["nvar"]
@@ -800,8 +801,8 @@ def main():
             )
 
             ii = 0
-            for ilvl in range(nlevelmax):
-                for icpu in range(ncpu + nboundaries):
+            for _ilvl in range(nlevelmax):
+                for _icpu in range(ncpu + nboundaries):
                     fin.read_int()  # ilvl2
                     ncache = fin.read_int()
                     if ncache > 0:
@@ -923,8 +924,10 @@ def main():
     particle_descs = {"io": ParticleFileAttrs, "sink": SinkFileAttrs}
 
     def particle_file_reader(
-        particle_handler: ParticleFileHandler, headers: dict = {}
+        particle_handler: ParticleFileHandler, headers: dict = None
     ) -> dict:
+        if headers is None:
+            headers = {}
 
         data_out = {}
         with FF(particle_handler.fname, "r") as fin:
@@ -1024,7 +1027,9 @@ def main():
                 )
                 ipos = np.round(pos * bscale).astype(np.int64)
                 particle_new_domain[icpu + 1] = np.searchsorted(
-                    new_bound_keys, hilbert3d(ipos, bit_length), side="left",
+                    new_bound_keys,
+                    hilbert3d(ipos, bit_length),
+                    side="left",
                 )
 
             # Need to update the number of cpus in the headers
@@ -1055,7 +1060,7 @@ def main():
         output_info_file = os.path.join(output_dir, input_info_fname)
 
         # Rewrite "info_XXXXX.txt"
-        with open(input_info_file, "r") as fin:
+        with open(input_info_file) as fin:
             lines = fin.readlines()
         with open(output_info_file, "w") as fout:
             line = lines.pop(0)
@@ -1194,7 +1199,7 @@ def debug_grid(dt, ncoarse):
         print(header)
         print("—" * len(header))
         while ioct >= 1:
-            __ = lambda e: e[e > 0]
+            __ = lambda e: e[e > 0]  # noqa: E731
             nbor = dt["nbor"][ioct - 1]
             mask = nbor > 0
             neigh_icell, neigh_igrid = (np.full(6, -1, dtype=int) for _ in range(2))
@@ -1223,15 +1228,17 @@ def debug_grid(dt, ncoarse):
 
     DIRECTIONS = [0, 1, 2]
 
-    def get_cube(ioct, dt, ret=None, prev_directions=[], depth=0, path=""):
+    def get_cube(ioct, dt, ret=None, prev_directions=None, depth=0, path=""):
+        if prev_directions is None:
+            prev_directions = []
         if ret is None:
             ret = {}
-            ret["iocts"] = set((ioct,))
+            ret["iocts"] = {ioct}
             ret["path"] = defaultdict(list)
             ret["path"][ioct] = [""]
 
         for idir in (_ for _ in DIRECTIONS if _ not in prev_directions):
-            __ = lambda e: e[e > 0]
+            __ = lambda e: e[e > 0]  # noqa: E731
             neigh_icell, neigh_igrid = np.unravel_index(
                 __(dt["nbor"][ioct - 1]) - ncoarse, (8, ngridmax)
             )
@@ -1264,8 +1271,8 @@ def debug_grid(dt, ncoarse):
         # Walk the tree up
         icell_list = []
         while ioct > 1:
-            __ = lambda e: e[e > 0]
-            neigh_icell, neigh_igrid = np.unravel_index(
+            __ = lambda e: e[e > 0]  # noqa: E731
+            _neigh_icell, _neigh_igrid = np.unravel_index(
                 __(dt["nbor"][ioct - 1]) - ncoarse, (8, ngridmax)
             )
             ioct_parent = (dt["parent"][ioct - 1] - ncoarse) % ngridmax
