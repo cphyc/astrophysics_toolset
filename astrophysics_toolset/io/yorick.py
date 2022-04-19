@@ -1,5 +1,5 @@
 import re
-from typing import Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from ..utilities.decorators import read_files
 from ..utilities.logging import logger
@@ -7,10 +7,19 @@ from ..utilities.logging import logger
 STRUCT_NAME_RE = re.compile(r"^struct (\w+) \{$")
 ARRAY_RE = re.compile(r"^\s*(\w+) (\w+)\((\d+)\);$")
 VAR_RE = re.compile(r"^\s*(\w+) (\w+);$")
+INFO_RE = re.compile(
+    r" array\((char|short|int|long|float|double|complex|string)((?:,\w+)*)\)"
+)
 
 
 class PDBReader:
-    _known_types = {"int": int, "float": float, "pointer": "yorick_pointer"}
+    _known_types = {
+        **{k: int for k in ("char", "short", "int", "long")},
+        **{k: float for k in ("float", "double")},
+        "complex": complex,
+        "string": str,
+        "pointer": "yorick_pointer",
+    }
 
     @read_files(1)
     def __init__(self, fname):
@@ -38,6 +47,8 @@ class PDBReader:
         for v in self._variables:
             self._structure[v] = self._parse_struct(v)
 
+        logger.debug("File structure: %s", self._structure)
+
         self._data = {}
 
     def check(self, fname):
@@ -51,17 +62,30 @@ class PDBReader:
         length = int(self.yo.e("numberof(ptrs)")) - 1
         variables = []
         for i in range(length):
-            variables.append(*self.yo.e(f"*ptrs({i+1})"))
+            variables.extend(self.yo.e(f"*ptrs({i+1})"))
         return variables
 
     def _parse_struct(self, var_name):
         v = f"f.{var_name}"
+
+        (info,) = self.yo(f"=info({v})")
+
+        match = INFO_RE.match(info)
+        if match:
+            type_str, shape_str = match.groups()
+            if shape_str:
+                shape = tuple(int(s) for s in shape_str[1:].split(","))
+            else:
+                shape = (1,)
+
+            return (self._known_types[type_str], shape)
+
         lines = self.yo.e(f"print(structof({v}))")
 
         # Now parse the structure
         remaining = lines[1:-1]  # last line is just }
 
-        variables = {}
+        variables: Dict[str, Tuple[str, Tuple[int, ...]]] = {}
         for line in remaining:
             tmp = ARRAY_RE.match(line)
             if tmp:
