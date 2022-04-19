@@ -30,9 +30,9 @@ def gaussian_filter(i, R):
         ),
         axis=0,
     )
-    k2 = np.sum(kgrid ** 2, axis=0)
+    k2 = np.sum(kgrid**2, axis=0)
 
-    return np.fft.irfftn(ik * np.exp(-k2 * (R ** 2 / 2)))
+    return np.fft.irfftn(ik * np.exp(-k2 * (R**2 / 2)))
 
 
 def top_hat_filter(i, R):

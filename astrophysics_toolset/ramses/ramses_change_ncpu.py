@@ -168,7 +168,7 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
         xc = np.zeros((ngridmax, ndim), dtype="d")
         nbor = np.zeros((ngridmax, 2 * ndim), dtype="i")
         son, cpu_map, refmap = (
-            np.zeros((ngridmax, 2 ** ndim), dtype="i") for _ in range(3)
+            np.zeros((ngridmax, 2**ndim), dtype="i") for _ in range(3)
         )
 
         # Coarse levels
@@ -216,13 +216,13 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
                         [read("i") for idim in range(2 * ndim)], axis=-1
                     )
                     son[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2 ** ndim)], axis=-1
+                        [read("i") for idim in range(2**ndim)], axis=-1
                     )
                     cpu_map[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2 ** ndim)], axis=-1
+                        [read("i") for idim in range(2**ndim)], axis=-1
                     )
                     refmap[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2 ** ndim)], axis=-1
+                        [read("i") for idim in range(2**ndim)], axis=-1
                     )
 
                     _level[i : i + ncache] = ilevel + 1  # Fortran is 1-indexed
@@ -316,7 +316,7 @@ def main():
     CONFIG = dict(new_ncpu=args.ncpu, iout=_iout)
 
     # %%
-    ipos = np.random.randint(0, 2 ** 9, size=(2000, 3))
+    ipos = np.random.randint(0, 2**9, size=(2000, 3))
 
     a = hilbert3d(ipos, 10)
     b = hilbert3d_yt(ipos, 10)
@@ -631,12 +631,12 @@ def main():
                 write_chunk("parent")
                 for idim in range(2 * 3):
                     write_chunk("nbor", idim)
-                for idim in range(2 ** 3):
+                for idim in range(2**3):
                     write_chunk("son", idim)
-                for idim in range(2 ** 3):
+                for idim in range(2**3):
                     assert np.all(amr_struct["cpu_map"][ii : ii + ncache, idim] > 0)
                     write_chunk("cpu_map", idim)
-                for idim in range(2 ** 3):
+                for idim in range(2**3):
                     write_chunk("refmap", idim)
 
                 ii += ncache

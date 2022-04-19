@@ -39,7 +39,7 @@ def test_gaussian_filter_1(x_1D):
     ynew = gaussian_filter(x_1D, R1)
 
     def fit_fun(x_1D, C, sigma):
-        return C * np.exp(-((x_1D - N1 // 2) ** 2) / 2 / sigma ** 2)
+        return C * np.exp(-((x_1D - N1 // 2) ** 2) / 2 / sigma**2)
 
     popt, pcov = curve_fit(fit_fun, xref, ynew, p0=[1, 2])
     Rmeasured = popt[1]
@@ -84,12 +84,12 @@ def test_top_hat_filter_exception(x_1D):
 
 
 def test_top_hat_filter_radius(x_3D, x_3D_large):
-    for x_3D, N in zip((x_3D, x_3D_large), (N3, N3_large)):
+    for x, N in zip((x_3D, x_3D_large), (N3, N3_large)):
         # Compute profile
         Nj = 1j * N
         s = slice(0, N, Nj)
         xyz = np.mgrid[s, s, s] - N / 2
-        v = top_hat_filter(x_3D, N / 3)
+        v = top_hat_filter(x, N / 3)
         r = np.linalg.norm(xyz, axis=0)
         res = binned_statistic(
             r.flatten(), v.flatten(), bins=np.linspace(0, N // 2, 200)
