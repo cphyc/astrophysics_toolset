@@ -3,7 +3,7 @@ requires = [
    "setuptools>=19.6",
    "wheel",
    "Cython>=0.29.21",
-   "numpy>=1.18,<1.22"
+   "oldest-supported-numpy",
 ]
 
 [tool.black]

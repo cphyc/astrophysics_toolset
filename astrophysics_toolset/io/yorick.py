@@ -1,4 +1,5 @@
 import re
+from typing import Iterable, Optional, Sequence
 
 from ..utilities.decorators import read_files
 from ..utilities.logging import logger
@@ -107,3 +108,53 @@ class PDBReader:
 
     def __getitem__(self, key):
         return self.get(key)
+
+    def walk_structure(self, node: dict = None, prefix=None) -> Iterable[list[str]]:
+        if node is None:
+            node = self.structure
+        if prefix is None:
+            prefix = []
+        for k, v in node.items():
+            if isinstance(v, dict):
+                yield from self.walk_structure(v, prefix + [k])
+                continue
+
+            if isinstance(v, tuple):
+                typ, _ = v
+            else:
+                typ = v
+            if typ in (int, float):
+                yield prefix + [k]
+
+    def to_hdf(self, filename: str, verbose=False):
+        import h5py
+
+        with h5py.File(filename, mode="w") as f:
+            for key in ("/".join(_) for _ in self.walk_structure()):
+                data = self.get(key)
+                logger.info("Reading %s shape=%s", key, data.shape)
+
+                f.create_dataset(key, data=data)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser("Convert yorick db to hdf5")
+    parser.add_argument("fname", help="Yorick file to read")
+    parser.add_argument("hdfname", help="HDF5 file to write")
+    parser.add_argument("-v", "--verbose", action="store_true")
+
+    args = parser.parse_args(argv)
+    if args.verbose:
+        logger.setLevel("DEBUG")
+    p = PDBReader(args.fname)
+    p.to_hdf(args.hdfname)
+
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main(sys.argv[1:]))  # pragma: no cover
