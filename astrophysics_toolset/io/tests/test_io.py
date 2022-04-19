@@ -14,6 +14,11 @@ def pdb():
     return PDBReader("data/galaxies-040.pdb")
 
 
+@pytest.fixture
+def pdb_array():
+    return PDBReader("data/toto.pdb")
+
+
 def walker_helper(keys, root):
     for key, val in root.items():
         if isinstance(val, dict):
@@ -110,3 +115,9 @@ def test_access(pdb):
 def test_access_incorrect(pdb):
     with pytest.raises(KeyError):
         pdb["this/does/not/exists"]
+
+
+@pytest.mark.skipif(SKIP_YORICK, reason=SKIP_YORICK_REASON)
+def test_read_arrays(pdb_array):
+    assert pdb_array["rg"].shape == (151,)
+    assert pdb_array["dens"].shape == (4, 151)
