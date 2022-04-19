@@ -1,5 +1,5 @@
 import re
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
 
 from ..utilities.decorators import read_files
 from ..utilities.logging import logger
@@ -109,7 +109,7 @@ class PDBReader:
     def __getitem__(self, key):
         return self.get(key)
 
-    def walk_structure(self, node: dict = None, prefix=None) -> Iterable[list[str]]:
+    def walk_structure(self, node: dict = None, prefix=None) -> Iterable[List[str]]:
         if node is None:
             node = self.structure
         if prefix is None:
