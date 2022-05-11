@@ -149,7 +149,6 @@ def add_luminosities(
     #  per metallicity
     #  per stellar age
     #  per band
-    ages = np.geomspace(1e-4, ds.r["star", "star_age"].max().to("Gyr"), 1000)
     all_metallicities = np.geomspace(1e-10, 10, 100)
     zmin = ds.r["star", "particle_metallicity"].min()
     zmax = ds.r["star", "particle_metallicity"].max()
@@ -159,7 +158,7 @@ def add_luminosities(
 
     metallicities = all_metallicities[imin - 1 : imax + 1]
     magnitude_interpolator = _compute_table(
-        fsps_params, ages=ages, metallicities=metallicities, bands=bands, n_jobs=8
+        fsps_params, metallicities=metallicities, bands=bands, n_jobs=8
     )
 
     def band_helper(iband):
