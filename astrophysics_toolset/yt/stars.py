@@ -61,7 +61,6 @@ def __helper(fsps_params, bands, metallicities):
 def _compute_table(
     fsps_params: dict,
     *,
-    ages: np.ndarray,
     metallicities: np.ndarray,
     bands: list,
     n_jobs=-1,
@@ -152,8 +151,8 @@ def add_luminosities(
     #  per band
     ages = np.geomspace(1e-4, ds.r["star", "star_age"].max().to("Gyr"), 1000)
     all_metallicities = np.geomspace(1e-10, 10, 100)
-    zmin = ds.r["star", "metallicity"].min()
-    zmax = ds.r["star", "metallicity"].max()
+    zmin = ds.r["star", "particle_metallicity"].min()
+    zmax = ds.r["star", "particle_metallicity"].max()
 
     imin = max(np.argmin((all_metallicities - zmin) ** 2), 1)
     imax = min(np.argmin((all_metallicities - zmax) ** 2), len(all_metallicities) - 1)
@@ -166,7 +165,7 @@ def add_luminosities(
     def band_helper(iband):
         def magnitude(field, data):
             met = data[field.name[0], "particle_metallicity"]
-            age = np.log10(data[field.name[0], "particle_age"].to("yr"))
+            age = np.log10(data[field.name[0], "star_age"].to("yr"))
 
             xi = np.stack((met, age), axis=-1)
 
