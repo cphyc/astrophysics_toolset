@@ -119,11 +119,12 @@ def _compute_table(
     )
 
 
+IMF_T = Optional[Literal["Salpeter", "Chabrier", "Kroupa", "von Dokkum", "Dave"]]
+
+
 def add_luminosities(
     ds,
-    imf: Optional[
-        Literal["Salpeter", "Chabrier", "Kroupa", "von Dokkum", "Dave"]
-    ] = None,
+    imf: IMF_T = None,
     fsps_params: Optional[dict] = None,
     bands: Optional[List] = None,
     ptype: str = "star",
