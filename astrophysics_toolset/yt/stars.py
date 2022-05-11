@@ -183,12 +183,12 @@ def add_luminosities(
             name=(ptype, f"{band}_magnitude"),
             function=mag,
             sampling_type="particle",
-            units="1",
+            units="",
         )
 
         ds.add_field(
             name=(ptype, f"{band}_luminosity"),
             function=lum,
             sampling_type="particle",
-            units="1",
+            units="",
         )
