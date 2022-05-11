@@ -166,7 +166,7 @@ def add_luminosities(
             met = data[field.name[0], "particle_metallicity"]
             age = np.log10(data[field.name[0], "star_age"].to("yr"))
 
-            xi = np.stack((met, age), axis=-1)
+            xi = np.stack((age, met), axis=-1)
 
             return magnitude_interpolator(xi)[:, iband]
 
