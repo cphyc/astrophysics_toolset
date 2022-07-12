@@ -21,6 +21,7 @@ import argparse
 import os
 import shutil
 from collections import defaultdict
+from dataclasses import dataclass
 
 # %%
 from glob import glob
@@ -188,6 +189,14 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
         ret["refmap"] = refmap
         ret["cpu_map"] = cpu_map
 
+        @dataclass
+        class Reader:
+            ncache: int
+
+            def __call__(self, dtype):
+                tmp = f.read_vector(dtype)
+                return tmp.reshape(self.ncache)
+
         # Fine levels
         i = 0
         for ilevel in range(nlevelmax):
@@ -200,9 +209,7 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
                     )
                     # ncache = numbb[ilevel, ibound - ncpu]
 
-                def read(kind):
-                    tmp = f.read_vector(kind)
-                    return tmp.reshape(ncache)
+                read = Reader(ncache=ncache)
 
                 if ncache > 0:
                     ind_grid[i : i + ncache] = read("i")
@@ -643,6 +650,15 @@ def main():
 
     Noct_tot = oct.count_octs()
 
+    @dataclass
+    class Pair2Icell:
+        ngridmax: int
+        ncoarse: int
+
+        def __call__(self, v):
+            # Compute cell indices from parent oct + icell
+            return v[..., 0] + ncoarse + v[..., 1] * ngridmax
+
     # Create AMR structure
     new_data = {}
     for new_icpu in range(1, CONFIG["new_ncpu"] + 1):
@@ -714,14 +730,12 @@ def main():
 
         if args.ngridmax == 0:
             headers["ngridmax"] = Noct_tot * 2 // args.ncpu
-        elif args.ngridmax == -1:
-            headers["ngridmax"] = headers["ngridmax"]
+        # elif args.ngridmax == -1:
+        #     headers["ngridmax"] = headers["ngridmax"]
         else:
             headers["ngridmax"] = args.ngridmax
 
-        def pair2icell(v):
-            # Compute cell indices from parent oct + icell
-            return v[..., 0] + ncoarse + v[..., 1] * headers["ngridmax"]
+        pair2icell = Pair2Icell(ngridmax=headers["ngridmax"], ncoarse=ncoarse)
 
         amr_struct["parent"] = pair2icell(amr_struct["parent"])
         amr_struct["nbor"] = pair2icell(amr_struct["nbor"])
