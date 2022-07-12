@@ -220,16 +220,16 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
                     )
                     parent[i : i + ncache] = read("i")
                     nbor[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2 * ndim)], axis=-1
+                        [read("i") for _ in range(2 * ndim)], axis=-1
                     )
                     son[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2**ndim)], axis=-1
+                        [read("i") for _ in range(2**ndim)], axis=-1
                     )
                     cpu_map[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2**ndim)], axis=-1
+                        [read("i") for _ in range(2**ndim)], axis=-1
                     )
                     refmap[i : i + ncache] = np.stack(
-                        [read("i") for idim in range(2**ndim)], axis=-1
+                        [read("i") for _ in range(2**ndim)], axis=-1
                     )
 
                     _level[i : i + ncache] = ilevel + 1  # Fortran is 1-indexed
