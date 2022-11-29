@@ -14,6 +14,8 @@
 #     name: python3
 # ---
 
+# noqa: C901
+
 # %% [markdown]
 # Writing myself the files
 
@@ -30,7 +32,7 @@ import ipyplot
 import matplotlib as mpl
 import numpy as np
 import yt
-from cython_fortran_file import FortranFile as FF
+from cython_fortran_file import FortranFile as FF  # noqa: N817
 from scipy.interpolate import interp1d
 from tqdm.auto import tqdm
 from yt.frontends.ramses.definitions import ramses_header
@@ -51,9 +53,6 @@ from astrophysics_toolset.ramses.oct_handler import Octree
 
 # %%
 parser = argparse.ArgumentParser()
-# parser.add_argument('--input', type=str, default='/home/ccc/Documents/Postdoc/genetIC-angular-momentum-constrain/simulations/data/DM_256_planck/resim/00140/halo_189/relative_change_lx_0.8/output_00001/info_00001.txt',
-#     help='Input file'
-# )
 parser.add_argument(
     "--input", required=True, type=str, help="Path to intut info_xxxx.txt file"
 )
@@ -82,7 +81,11 @@ parser.add_argument(
     "--ngridmax",
     type=int,
     default=0,
-    help="The new value of ngridmax. If set to 0 (default), then compute it from the total number of octs. If set to -1, use the old value and if set to anything other, use this new value",
+    help=(
+        "The new value of ngridmax. If set to 0 (default), then compute it from the "
+        "total number of octs. If set to -1, use the old value and if set to anything"
+        " other, use this new value"
+    ),
 )
 parser.add_argument(
     "--remap",
@@ -121,12 +124,12 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
         numbl = f.read_vector("i").reshape(shape)
         try:
             numbtot = f.read_vector(i8b).reshape((10, headers["nlevelmax"]))
-        except ValueError:
+        except ValueError as e:
             raise Exception(
                 "Caught an exception while reading numbtot. This is likely due "
                 "to you forgetting to (un)set the longint flag!\n"
                 "Try calling the script with/out `--longint`."
-            )
+            ) from e
 
         # Free memory
         headf, tailf, numbf, used_mem, used_mem_tot = f.read_vector("i")
@@ -146,23 +149,24 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
                         dtype=np.float128,
                     )
                     s2 = int.from_bytes(f2.read(4), byteorder="little")
-                    assert s1 == s2
+                    if s1 != s2:
+                        raise ValueError("Error reading bound_keys")
                     f.seek(f2.tell())
             else:
                 bound_keys = f.read_vector(qdp).reshape(ndomain + 1)
-        except ValueError:
+        except ValueError as e:
             raise Exception(
                 "Caught an exception while reading hilbert keys. This is likely due "
                 "to you forgetting to (un)set the quadhibert flag!\n"
                 "Try calling the script with/out `--quadhilbert`."
-            )
+            ) from e
 
         nlevelmax, nboundary, ncpu, ndim, ngridmax = (
             headers[k] for k in ("nlevelmax", "nboundary", "ncpu", "ndim", "ngridmax")
         )
 
         # Allocate memory
-        _level, _ndom, ind_grid, next, prev, parent = (
+        _level, _ndom, ind_grid, inext, iprev, iparent = (
             np.zeros(ngridmax, dtype="i") for _ in range(6)
         )
         _level_cell = np.zeros((ngridmax, 8), dtype="i")
@@ -213,12 +217,12 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
 
                 if ncache > 0:
                     ind_grid[i : i + ncache] = read("i")
-                    next[i : i + ncache] = read("i")
-                    prev[i : i + ncache] = read("i")
+                    inext[i : i + ncache] = read("i")
+                    iprev[i : i + ncache] = read("i")
                     xc[i : i + ncache] = np.stack(
                         [read(dp) for i in range(ndim)], axis=-1
                     )
-                    parent[i : i + ncache] = read("i")
+                    iparent[i : i + ncache] = read("i")
                     nbor[i : i + ncache] = np.stack(
                         [read("i") for _ in range(2 * ndim)], axis=-1
                     )
@@ -239,10 +243,10 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
 
         (
             ind_grid,
-            next,
-            prev,
+            inext,
+            iprev,
             xc,
-            parent,
+            iparent,
             nbor,
             son,
             cpu_map,
@@ -254,10 +258,10 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
             _[:i]
             for _ in (
                 ind_grid,
-                next,
-                prev,
+                inext,
+                iprev,
                 xc,
-                parent,
+                iparent,
                 nbor,
                 son,
                 cpu_map,
@@ -269,23 +273,23 @@ def read_amr(amr_file: str, longint: bool, quadhilbert: bool):
         )
 
         ret.update(
-            dict(
-                ind_grid=ind_grid,
-                next=next,
-                prev=prev,
-                xc=xc,
-                parent=parent,
-                nbor=nbor,
-                son=son,
-                cpu_map=cpu_map,
-                refmap=refmap,
-                coarse_refmap=coarse_refmap,
-                coarse_cpu_map=coarse_cpu_map,
-                coarse_son=coarse_son,
-                _level=_level,
-                _level_cell=_level_cell,
-                _ndom=_ndom,
-            )
+            {
+                "ind_grid": ind_grid,
+                "next": inext,
+                "prev": iprev,
+                "xc": xc,
+                "parent": iparent,
+                "nbor": nbor,
+                "son": son,
+                "cpu_map": cpu_map,
+                "refmap": refmap,
+                "coarse_refmap": coarse_refmap,
+                "coarse_cpu_map": coarse_cpu_map,
+                "coarse_son": coarse_son,
+                "_level": _level,
+                "_level_cell": _level_cell,
+                "_ndom": _ndom,
+            }
         )
 
         return ret
@@ -302,7 +306,7 @@ def read_all_amr_files(dirname: str, longint: bool, quadhilbert: bool):
     return data
 
 
-def main():
+def main():  # noqa: C901
     args = parser.parse_args()
 
     input_dir = os.path.abspath(os.path.split(args.input)[0])
@@ -311,7 +315,8 @@ def main():
         raise Exception(
             (
                 "Either the destination folder already exists (%s) or "
-                "you are trying to write new files in the same folder as the old one (%s).\n"
+                "you are trying to write new files in the same folder as "
+                "the old one (%s).\n"
                 "Either way, I am Refusing to do that.\n\n\n"
                 "Sorry."
             )
@@ -320,7 +325,7 @@ def main():
 
     # Making output dir
     _iout = int(os.path.split(args.input)[1].split(".txt")[0].split("_")[1])
-    CONFIG = dict(new_ncpu=args.ncpu, iout=_iout)
+    CONFIG = {"new_ncpu": args.ncpu, "iout": _iout}
 
     # %%
     ipos = np.random.randint(0, 2**9, size=(2000, 3))
@@ -341,7 +346,8 @@ def main():
     nx_loc = 1
     scale = boxlen / nx_loc
     ndim = data[1]["headers"]["ndim"]
-    assert ndim == 3
+    if ndim != 3:
+        raise ValueError("Only 3D datasets are supported")
 
     bscale = 2 ** (nlevelmax + 1)
     ncode = nx_loc * int(bscale)
@@ -353,7 +359,8 @@ def main():
         if ncode <= 1:
             break
     bit_length = _bit_length
-    # At this stage, we have loaded the AMR structure and we make sure we are able to recompute the CPU map. This will be useful in the future.
+    # At this stage, we have loaded the AMR structure and we make sure we are able
+    # to recompute the CPU map. This will be useful in the future.
     dd = np.array(
         [(i, j, k) for k in (-1, 1) for j in (-1, 1) for i in (-1, 1)]
     )  # note the ordering here (for Fortran/C ordering)
@@ -391,7 +398,8 @@ def main():
                     "Just wanted to let you know!."
                 )
         else:
-            assert np.all(cpu_map == cpu_map_with_keys)
+            if not np.all(cpu_map == cpu_map_with_keys):
+                raise ValueError("Something went wrong while computing the CPU map.")
 
         dt["_ind_cell"] = dt["ind_grid"][:, None] + ii[None, :]
 
@@ -437,7 +445,9 @@ def main():
     new_bound_keys = (new_bound_keys.astype(np.float64)).astype(original_dtype)
 
     # %%
-    oct = Octree(nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG["new_ncpu"])
+    octree = Octree(
+        nlevelmin, nlevelmax, old_ncpu=old_ncpu, new_ncpu=CONFIG["new_ncpu"]
+    )
     N2 = 1
     for icpu, dt in tqdm(data.items(), desc="Adding grids to tree"):
         mask = dt["_level"] <= 99999
@@ -464,7 +474,7 @@ def main():
         lvl_ind = dt["_level"][mask].astype(np.int64)
 
         owing_cpu = np.full_like(new_domain_ind, icpu)
-        N2 += oct.add(
+        N2 += octree.add(
             ipos,
             file_ind,
             domain_ind,
@@ -508,7 +518,7 @@ def main():
         ixc_neigh = (xc_neigh * bscale).astype(int).copy()
 
         # Set neighbours for all octs that do have a child
-        oct.set_neighbours(ixc, ixc_neigh, lvl)
+        octree.set_neighbours(ixc, ixc_neigh, lvl)
 
     for dt in tqdm(data.values(), desc="Setting neighbours"):
         set_neighbours(dt)
@@ -551,7 +561,7 @@ def main():
         ("bound_keys", QUADHILBERT),
     )
 
-    def write_amr_file(headers, amr_struct, amr_file):
+    def write_amr_file(headers, amr_struct, amr_file):  # noqa: C901
         """This write the new amr files
 
         Parameters
@@ -604,7 +614,8 @@ def main():
         f.write_vector(amr_struct["coarse_son"].astype(np.int32))
         f.write_vector(amr_struct["coarse_refmap"].astype(np.int32))
         cpu_map_coarse = np.argwhere(numbl[0] == 1).astype(np.int32).flatten() + 1
-        assert cpu_map_coarse.size == 1
+        if cpu_map_coarse.size != 1:
+            raise ValueError("Coarse level should have only one oct")
         f.write_vector(cpu_map_coarse)
 
         print("Fine levels")
@@ -641,14 +652,15 @@ def main():
                 for idim in range(2**3):
                     write_chunk("son", idim)
                 for idim in range(2**3):
-                    assert np.all(amr_struct["cpu_map"][ii : ii + ncache, idim] > 0)
+                    if not np.all(amr_struct["cpu_map"][ii : ii + ncache, idim] > 0):
+                        raise ValueError("cpu_map should be > 0")
                     write_chunk("cpu_map", idim)
                 for idim in range(2**3):
                     write_chunk("refmap", idim)
 
                 ii += ncache
 
-    Noct_tot = oct.count_octs()
+    Noct_tot = octree.count_octs()
 
     @dataclass
     class Pair2Icell:
@@ -677,7 +689,7 @@ def main():
 
         ###########################################################
         # Amr structure
-        oct.clear_paint()
+        octree.clear_paint()
         if args.remap == "at_boundaries":
             old_icpu_list = list(
                 range(1 + icpu_ind[new_icpu - 1], 1 + icpu_ind[new_icpu])
@@ -694,7 +706,7 @@ def main():
 
                 ixc = (xc[igrid0 - 1] * bscale).astype(np.int64).copy()
 
-                oct.select(ixc, lvl)
+                octree.select(ixc, lvl)
 
             # Loop over old domains and select the cells in them
             for dt in (data[_] for _ in old_icpu_list):
@@ -703,14 +715,14 @@ def main():
                 igrid0 = dt["ind_grid"][1:]
                 ixc = (xc[igrid0 - 1] * bscale).astype(np.int64).copy()
 
-                oct.select(ixc, lvl)
+                octree.select(ixc, lvl)
         else:
             # Select cells that intersect with domain
-            oct.select_hilbert(bk_low, bk_up)
-            oct.expand_boundaries(new_icpu, nexpand=args.nexpand)
+            octree.select_hilbert(bk_low, bk_up)
+            octree.expand_boundaries(new_icpu, nexpand=args.nexpand)
 
         # Extract structure
-        amr_struct = oct.extract_data()
+        amr_struct = octree.extract_data()
 
         file_inds = amr_struct["file_ind"]
         nocts = len(file_inds)
@@ -782,19 +794,19 @@ def main():
         write_amr_file(headers, tmp, amr_file)
 
     print(" old structure ".center(120, "="))
-    for l in data[1]["numbl"]:
-        for c in l:
+    for numbl in data[1]["numbl"]:
+        for c in numbl:
             print("%7d" % c, end="")
-        print("| %s" % l.sum())
+        print("| %s" % numbl.sum())
 
     print(" new structure ".center(120, "="))
 
-    for l in new_data[1]["numbl"]:
-        for c in l:
+    for numbl in new_data[1]["numbl"]:
+        for c in numbl:
             print("%7d" % c, end="")
-        print("| %s" % l.sum())
+        print("| %s" % numbl.sum())
 
-    oct.check_tree(999)
+    octree.check_tree(999)
 
     # Now write hydro
 
@@ -832,7 +844,10 @@ def main():
         with FF(fname, mode="w") as fout:
             for key, _len, dtype in headers["_structure"]:
                 tmp = np.atleast_1d(headers[key]).astype(dtype)
-                assert len(tmp) == _len
+                if len(tmp) != _len:
+                    raise RuntimeError(
+                        f"Header {key} has length {len(tmp)} but should be {_len}"
+                    )
                 fout.write_vector(tmp)
             nvar = headers["nvar"]
             nboundaries = headers["nboundary"]
@@ -957,7 +972,11 @@ def main():
 
                 # This happens for sink files
                 if npart is not None:
-                    assert data_out[k].size == npart
+                    if data_out[k].size != npart:
+                        raise RuntimeError(
+                            f"Field {k} has size {data_out[k].size} "
+                            f"but should be {npart}"
+                        )
 
         return headers, data_out
 
@@ -981,7 +1000,10 @@ def main():
             # Write headers
             for key, _len, dtype in h["_structure"]:
                 tmp = np.atleast_1d(h[key]).astype(dtype)
-                assert (len(tmp) == _len) or (_len == -1)
+                if not ((len(tmp) == _len) or (_len == -1)):
+                    raise RuntimeError(
+                        f"Header {key} has length {len(tmp)} but should be {_len}"
+                    )
                 fout.write_vector(tmp)
 
             # Write fields
@@ -1004,7 +1026,8 @@ def main():
 
         progress = tqdm(total=nkind)
 
-        # Special case for sinks -> simply make new_ncpu copies (all sink files are the same)
+        # Special case for sinks -> simply make new_ncpu copies
+        # (all sink files are the same)
         for ph in (ph for ph in particle_handlers if ph.ptype == "sink"):
             progress.set_description(f"{ph.ptype}: R")
             pdesc = particle_descs[ph.ptype]
@@ -1109,7 +1132,7 @@ if __name__ == "__main__":
     main()
 
 
-def test_using_yt(args, CONFIG):
+def test_using_yt(args, CONFIG):  # noqa: 901
     yt.funcs.mylog.setLevel(40)
     # Test reading with yt as a weak test
     ds_original = yt.load(args.input)
@@ -1150,7 +1173,8 @@ def test_using_yt(args, CONFIG):
         images_with_diff.append(new_fname)
 
     print(
-        "Note: we expect artifacts with particle CIC deposition due to yt internal deposition (does not depose on other domains)"
+        "Note: we expect artifacts with particle CIC deposition due to yt"
+        " internal deposition (does not depose on other domains)"
     )
     ipyplot.plot_class_tabs(
         np.asarray(images_with_diff),
@@ -1173,7 +1197,7 @@ def test_using_yt(args, CONFIG):
     for field in (
         "Density Pressure Metallicity".split()
         + [f"{k}-velocity" for k in "xyz"]
-        + [_ for _ in "xyz"]
+        + list("xyz")
     ):
         print("Checking %s" % field, end="... ")
         vnew = extract_field(ad_new, field, order["new"])
@@ -1206,10 +1230,15 @@ def test_using_yt(args, CONFIG):
         print("ok!")
 
 
-def debug_grid(dt, ncoarse):
+def debug_grid(dt, ncoarse):  # noqa: C901
     # ## Debugging the grid
     def print_tree(ioct, dt):
-        header = "     ioct  xc                                     cpu_map                    son                                                cpu_neigh            neigh_ind                            "
+        header = (
+            "     ioct  xc                                     "
+            "cpu_map                    son                    "
+            "                            cpu_neigh            "
+            "neigh_ind                            "
+        )
         print(header)
         print("—" * len(header))
         while ioct >= 1:
@@ -1223,7 +1252,7 @@ def debug_grid(dt, ncoarse):
             cpu_neigh = dt["cpu_map"][neigh_igrid - 1, neigh_icell]
             cpu_neigh[~mask] = -1
 
-            def __(x, n):
+            def __(x, n):  # noqa: N807
                 return str(x).ljust(n)
 
             neigh_ind = dt["son"][neigh_igrid - 1, neigh_icell]
@@ -1308,7 +1337,8 @@ def debug_grid(dt, ncoarse):
     icell, iparent = np.unravel_index(dt["parent"] - ncoarse, (8, ngridmax))
     iparent += 1
 
-    assert np.all(iparent[1:] > 0)
+    if not np.all(iparent[1:] > 0):
+        raise ValueError("Tree is not complete")
 
     def get_this_neighbour(i, j, k, dt, ioct):
         icell, igrid = np.unravel_index(
@@ -1346,7 +1376,8 @@ def debug_grid(dt, ncoarse):
         icell, igrid
 
         # Make sure all neighbours exist
-        assert np.all(igrid[1:] > 0)
+        if not np.all(igrid[1:] > 0):
+            raise RuntimeError("Missing neighbours")
 
         # Make sure all neighbours' neighbour exist
         for ioct in dt["ind_grid"][9:]:

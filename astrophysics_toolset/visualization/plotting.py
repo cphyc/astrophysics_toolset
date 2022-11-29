@@ -124,7 +124,8 @@ def fix_glyph_errors(ax=None):
 
     if mpl.rcParams["axes.unicode_minus"] is False:
         warnings.warn(
-            "If you have issues with minus sign, set `axes.unicode_minus` to True in the rcParams."
+            "If you have issues with minus sign, set `axes.unicode_minus` "
+            "to True in the rcParams."
         )
     if mpl.rcParams["text.usetex"]:
         # Everything is handled by LaTeX, so nothing to do.

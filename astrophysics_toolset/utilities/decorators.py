@@ -9,7 +9,7 @@ import numpy as np
 from .exceptions import AstroToolsetNotSpatialError
 
 
-class read_files:
+class read_files:  # noqa: N801
     """Decorator for functions that take a file as input.
 
     Parameters:
@@ -47,11 +47,11 @@ def spatial(fun):
 
     @wraps(fun)
     def wrapped(spatial_array, *args, **kwargs):
-        try:
-            assert isinstance(spatial_array, np.ndarray)
-            assert spatial_array.ndim >= 2
-            assert spatial_array.shape[-1] == 3
-        except AssertionError:
+        if not (
+            isinstance(spatial_array, np.ndarray)
+            and spatial_array.ndim >= 2
+            and spatial_array.shape[-1] == 3
+        ):
             raise AstroToolsetNotSpatialError(spatial_array)
         return fun(spatial_array, *args, **kwargs)
 

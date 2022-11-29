@@ -14,7 +14,7 @@ location.mkdir(parents=True, exist_ok=True)
 mem = joblib.Memory(location=location)
 
 
-class fsps_imports:
+class FspsImports:
     _name = "fsps"
     _module = None
 
@@ -30,7 +30,7 @@ class fsps_imports:
         return getattr(self._module, attr)
 
 
-fsps = fsps_imports()
+fsps = FspsImports()
 
 
 @yt.particle_filter(requires=["particle_family"], filtered_type="star")
