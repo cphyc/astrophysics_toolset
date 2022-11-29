@@ -8,7 +8,7 @@ requires = [
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38']
+target-version = ['py37', 'py38', 'py39', 'py310']
 
 [tool.isort]
 profile = "black"
@@ -33,3 +33,9 @@ known_third_party = [
 ]
 known_first_party = ["astrophysics_toolset"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.ruff]
+# Enable Pyflakes `E` and `F` codes by default.
+select = ["E", "F"]
+ignore = []
+target-version = 'py310'
