@@ -48,7 +48,6 @@ master_doc = "index"
 
 # General information about the project.
 project = "Astrophysics toolset"
-copyright = "2020, Corentin Cadiou"
 author = "Corentin Cadiou"
 
 # The version info for the project you're documenting, acts as replacement
