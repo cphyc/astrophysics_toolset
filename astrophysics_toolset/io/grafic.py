@@ -1,7 +1,7 @@
 """Support Grafic I/O."""
 
 import numpy as np
-from scipy.io import FortranFile as FF
+from scipy.io import FortranFile as FF  # noqa: N817
 
 from ..utilities.decorators import read_files
 from ..utilities.types import PathType
@@ -38,14 +38,14 @@ def read(fname: PathType) -> IOResult:
             dens[i] = f.read_reals("f").reshape(N2, N3)
 
     return IOResult(
-        data=dict(rho=dens),
-        metadata=dict(
-            Lbox=Lbox,
-            Omega_m=Omega_m,
-            Omega_c=Omega_c,
-            Omega_l=Omega_l,
-            Xc=Xc,
-            aexp=aexp,
-            N=N1,
-        ),
+        data={"rho": dens},
+        metadata={
+            "Lbox": Lbox,
+            "Omega_m": Omega_m,
+            "Omega_c": Omega_c,
+            "Omega_l": Omega_l,
+            "Xc": Xc,
+            "aexp": aexp,
+            "N": N1,
+        },
     )

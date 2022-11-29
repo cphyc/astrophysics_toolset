@@ -2,7 +2,7 @@ import logging
 import sys
 
 # This next bit is grabbed from:
-# http://stackoverflow.com/questions/384076/how-can-i-make-the-python-logging-output-to-be-colored
+# http://stackoverflow.com/questions/384076/how-can-i-make-the-python-logging-output-to-be-colored  # noqa: E501
 
 
 def add_coloring_to_emit_ansi(fn):
