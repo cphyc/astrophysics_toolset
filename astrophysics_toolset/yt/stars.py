@@ -128,7 +128,6 @@ def add_luminosities(
     bands: Optional[List] = None,
     ptype: str = "star",
 ):
-
     if imf is None:
         imf = "Chabrier"
     if imf not in IMFS:
