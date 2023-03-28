@@ -1222,7 +1222,7 @@ def test_using_yt(args, CONFIG):  # noqa: 901
         ("DM", f"particle_{suffix}")
         for suffix in "mass position velocity family tag".split()
     ):
-        print("Checking %s, %s" % field, end="... ")
+        print("Checking {}, {}".format(*field), end="... ")
         vnew = extract_field(ad_new, field, order["new"])
         vref = extract_field(ad_ref, field, order["ref"])
 
