@@ -1372,8 +1372,7 @@ def debug_grid(dt, ncoarse):  # noqa: C901
     def check_domain(dt):
         ngridmax = dt["headers"]["ngridmax"]
         print("\t\tChecking neighbours")
-        icell, igrid = np.unravel_index(dt["nbor"] - ncoarse, (8, ngridmax))
-        icell, igrid
+        _icell, igrid = np.unravel_index(dt["nbor"] - ncoarse, (8, ngridmax))
 
         # Make sure all neighbours exist
         if not np.all(igrid[1:] > 0):
