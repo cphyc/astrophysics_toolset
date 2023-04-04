@@ -38,6 +38,7 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 select = ["E", "C", "F", "U", "B", "A", "YTT", "S", "N"]
 ignore = [
   "N802", "N803", "N806",  # variable should be lowercase
+  "C901", # function too complex
 ]
 target-version = 'py37'
 
