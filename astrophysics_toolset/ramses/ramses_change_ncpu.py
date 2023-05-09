@@ -314,13 +314,12 @@ def main():  # noqa: C901
     if input_dir == output_dir or os.path.exists(args.output_dir):
         raise Exception(
             (
-                "Either the destination folder already exists (%s) or "
+                "Either the destination folder already exists ({}) or "
                 "you are trying to write new files in the same folder as "
-                "the old one (%s).\n"
+                "the old one ({}).\n"
                 "Either way, I am Refusing to do that.\n\n\n"
                 "Sorry."
-            )
-            % (output_dir, input_dir)
+            ).format(output_dir, input_dir)
         )
 
     # Making output dir
@@ -780,8 +779,9 @@ def main():  # noqa: C901
         # Make sure ngridmax is large enough
         if nocts > headers["ngridmax"]:
             raise RuntimeError(
-                "ERROR: you need to increase ngridmax to at least %s, got %s!"
-                % (nocts, headers["ngridmax"])
+                "ERROR: you need to increase ngridmax to at least {}, got {}!".format(
+                    nocts, headers["ngridmax"]
+                )
             )
 
         # Write AMR file
