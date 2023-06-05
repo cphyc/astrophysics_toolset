@@ -6,6 +6,8 @@ import warnings
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.collections import LineCollection
 from matplotlib.mathtext import MathTextWarning
 from matplotlib.offsetbox import AnchoredOffsetbox
 
@@ -204,3 +206,25 @@ def colorbar(mappable, ax=None):
         # Restore previous current axis
         plt.sca(last_axes)
     return cbar
+
+
+def plot_linecolor(x, y, c, *args, **kwargs) -> LineCollection:
+    """Plot a line with a position-dependent color.
+
+    Parameters
+    ----------
+    x, y : array-like
+        The data to plot
+    c : array-like
+        The color of each point
+    *args, **kwargs : passed to `plt.plot`
+    """
+    points = np.array([x, y]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    lc = LineCollection(segments)
+    lc.set_color(c)
+    ax = plt.gca()
+    ax.add_collection(lc)
+    ax.autoscale_view()
+
+    return lc
