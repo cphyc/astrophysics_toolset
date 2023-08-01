@@ -681,7 +681,7 @@ cdef class Selector:
         cdef np.uint64_t ipos[3]
         cdef np.uint64_t di
         root = <Oct*> self.octree.root
-        di = 2**self.levelmax
+        di = 1 << self.levelmax
         # The position is between 0 and 2 * 2**levelmax
         ipos[0] = di
         ipos[1] = di
@@ -766,7 +766,7 @@ cdef class Selector:
 
             if debug: print('  '*oi.ilvl, f'BF: Visiting {oi.oct.file_ind}')
 
-            di = 2**(self.levelmax-oi.ilvl)
+            di = 1 << (self.levelmax-oi.ilvl)
             # Visit its children
             for k in range(2):
                 oi.ipos[2] += (2*k - 1) * di
