@@ -41,36 +41,33 @@ def read_lightcones(
             f.read_int()
             f.read_int()
 
-            # print(nbloc)
-            # assert nbloc == 1, "Not implemented"
+            records = [
+                "x",
+                "vx",
+                "_skip",
+                "y",
+                "vy",
+                "_skip",
+                "z",
+                "vz",
+                "_skip",
+                "redshift",
+                "mass",
+            ]
+            if kind == "stars":
+                records += ["age"]
+            elif kind == "gas":
+                records += ["dens", "temp"]
+
+            if metal:
+                records += ["metal", *(f"chem{i}" for i in range(nchem))]
 
             for _bloc in range(nbloc):
-                # Read x, vx, y, vy, z, vz
-                data["x"].append(f.read_vector("f"))
-                data["vx"].append(f.read_vector("f"))
-                data["y"].append(f.read_vector("f"))
-                data["vy"].append(f.read_vector("f"))
-                data["z"].append(f.read_vector("f"))
-                data["vz"].append(f.read_vector("f"))
-                data["redshift"].append(f.read_vector("f"))
-                data["mass"].append(f.read_vector("f"))
-
-                if kind == "stars":
-                    data["age"].append(f.read_vector("f"))
-                    if not metal:
+                for key in records:
+                    value = f.read_vector("f")
+                    if key.startswith("_"):
                         continue
-                    data["metal"].append(f.read_vector("f"))
-
-                    for ichem in range(nchem):
-                        data[f"chem{ichem}"].append(f.read_vector("f"))
-                elif kind == "gas":
-                    data["dens"].append(f.read_vector("f"))
-                    data["temp"].append(f.read_vector("f"))
-                    if not metal:
-                        continue
-                    data["metal"].append(f.read_vector("f"))
-                    for ichem in range(nchem):
-                        data[f"chem{ichem}"].append(f.read_vector("f"))
+                    data[key].append(value)
 
             inow = f.tell()
             # Seek to the end of the file
@@ -79,6 +76,17 @@ def read_lightcones(
 
             if not inow == iend:
                 raise RuntimeError(f"File {filename} not fully read: {inow} != {iend}")
+            yt.mylog.debug(filename)
+            yt.mylog.debug("xp(1:5, 1)=%s", data["x"][-1][:5])
+            yt.mylog.debug("xp(1:5, 2)=%s", data["y"][-1][:5])
+            yt.mylog.debug("xp(1:5, 3)=%s", data["z"][-1][:5])
+            yt.mylog.debug("vp(1:5, 1)=%s", data["vx"][-1][:5])
+            yt.mylog.debug("vp(1:5, 2)=%s", data["vy"][-1][:5])
+            yt.mylog.debug("vp(1:5, 3)=%s", data["vz"][-1][:5])
+            yt.mylog.debug("zp(1:5)=%s", data["redshift"][-1][:5])
+            yt.mylog.debug("mp(1:5)=%s", data["mass"][-1][-5:])
+            yt.mylog.debug("age(1:5)=%s", data["age"][-1][:5])
+            yt.mylog.debug("Zmet(1:5)=%s", data["metal"][-1][:5])
 
     return {k: np.concatenate(v) for k, v in data.items()}
 
@@ -147,10 +155,13 @@ def main(argv=None):
     if not yt.is_root():
         return 0
 
-    df = pd.concat(list(all_data.values()), ignore_index=True)
-    df.to_hdf(
-        args.output,
-        "data",
+    (
+        pd.concat(list(all_data.values()), ignore_index=True)
+        .loc[:, "x y z vx vy vz redshift mass age metal".split()]
+        .to_hdf(
+            args.output,
+            "data",
+        )
     )
 
     yt.mylog.info(f"Successfully wrote {len(df)} rows to {args.output}")
