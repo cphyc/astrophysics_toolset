@@ -155,13 +155,12 @@ def main(argv=None):
     if not yt.is_root():
         return 0
 
-    (
-        pd.concat(list(all_data.values()), ignore_index=True)
-        .loc[:, "x y z vx vy vz redshift mass age metal".split()]
-        .to_hdf(
-            args.output,
-            "data",
-        )
+    df = pd.concat(list(all_data.values()), ignore_index=True).loc[
+        :, "x y z vx vy vz redshift mass age metal".split()
+    ]
+    df.to_hdf(
+        args.output,
+        "data",
     )
 
     yt.mylog.info(f"Successfully wrote {len(df)} rows to {args.output}")
