@@ -313,13 +313,11 @@ def main():  # noqa: C901
     output_dir = os.path.abspath(args.output_dir)
     if input_dir == output_dir or os.path.exists(args.output_dir):
         raise Exception(
-            (
-                "Either the destination folder already exists ({}) or "
-                "you are trying to write new files in the same folder as "
-                "the old one ({}).\n"
-                "Either way, I am Refusing to do that.\n\n\n"
-                "Sorry."
-            ).format(output_dir, input_dir)
+            f"Either the destination folder already exists ({output_dir}) or "
+            "you are trying to write new files in the same folder as "
+            f"the old one ({input_dir}).\n"
+            "Either way, I am Refusing to do that.\n\n\n"
+            "Sorry."
         )
 
     # Making output dir
@@ -1132,7 +1130,7 @@ if __name__ == "__main__":
     main()
 
 
-def test_using_yt(args, CONFIG):  # noqa: 901
+def test_using_yt(args, CONFIG):
     yt.funcs.mylog.setLevel(40)
     # Test reading with yt as a weak test
     ds_original = yt.load(args.input)
