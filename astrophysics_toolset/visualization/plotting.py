@@ -1,4 +1,5 @@
 """Scale bar from https://gist.github.com/dmeliza/3251476."""
+
 # Adapted from mpl_toolkits.axes_grid1
 # LICENSE: Python Software Foundation (http://docs.python.org/license.html)
 

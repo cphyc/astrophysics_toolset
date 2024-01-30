@@ -1,4 +1,5 @@
 """Handle periodicity."""
+
 import numpy as np
 
 from .decorators import spatial

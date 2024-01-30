@@ -1,4 +1,5 @@
 """Console script for astrophysics_toolset."""
+
 import argparse
 import sys
 

@@ -832,9 +832,9 @@ def main():  # noqa: C901
                     if ncache > 0:
                         for icell in range(8):
                             for ivar in range(nvar):
-                                data_out[
-                                    ivar, icell, ii : ii + ncache
-                                ] = fin.read_vector("d")
+                                data_out[ivar, icell, ii : ii + ncache] = (
+                                    fin.read_vector("d")
+                                )
                     ii += ncache
         return headers, data_out
 
