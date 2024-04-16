@@ -128,7 +128,7 @@ def plot_time_per_timestep(coarse_step_stats: pd.DataFrame):
         fig.savefig("time_per_timestep.pdf")
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Read RAMSES log files")
@@ -163,3 +163,7 @@ if __name__ == "__main__":
 
     if args.plot_time_per_timestep:
         plot_time_per_timestep(coarse_step_stats)
+
+
+if __name__ == "__main__":
+    main()
