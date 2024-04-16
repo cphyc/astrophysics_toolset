@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -33,6 +34,17 @@ TIME_RE = re.compile(
     r"\s*(?P<micros_per_pt_av>\d+\.\d+) mus/pt \(av\)"
 )
 
+# Match 'SED feedback(phot/step/1d50, phot/tot/1d50, *, */Msun , dt[yr])=
+#        6.57E+16 1.93E+19 1.40E+06 7.41E+09 2.42E+04'
+SED_RE = re.compile(
+    r"SED feedback\(phot\/step\/1d50, phot\/tot\/1d50, \*, \*\/Msun , dt\[yr\]\)=\s*"
+    r"(?P<photons>[-+]?[0-9]*\.?[0-9]+[eE]?[-+]?[0-9]+)\s*"
+    r"(?P<photons_tot>[-+]?[0-9]*\.?[0-9]+[eE]?[-+]?[0-9]+)\s*"
+    r"(?P<not_sure>[-+]?[0-9]*\.?[0-9]+[eE]?[-+]?[0-9]+)\s*"
+    r"(?P<Msun>[-+]?[0-9]*\.?[0-9]+[eE]?[-+]?[0-9]+)\s*"
+    r"(?P<dt>[-+]?[0-9]*\.?[0-9]+[eE]?[-+]?[0-9]+)\s*"
+)
+
 
 def read_log_file(log_file: str):
     logger.info("Reading log file %s", log_file)
@@ -41,7 +53,7 @@ def read_log_file(log_file: str):
 
     level_stats: dict[tuple[int, int], dict[str, int]] = {}
     fine_step_stats: dict[tuple[int, int], dict[str, float]] = {}
-    coarse_step_stats: dict[int, dict[str, float]] = {}
+    coarse_step_stats: dict[int, dict[str, float]] = defaultdict(dict)
 
     with open(log_file) as f:
         for line in f:
@@ -65,9 +77,14 @@ def read_log_file(log_file: str):
             elif match := TIME_RE.match(line):
                 data = match.groupdict()
                 current_coarse_timestep += 1
-                coarse_step_stats[current_coarse_timestep] = {
-                    k: float(v) for k, v in data.items()
-                }
+                coarse_step_stats[current_coarse_timestep].update(
+                    {k: float(v) for k, v in data.items()}
+                )
+            elif match := SED_RE.match(line):
+                data = match.groupdict()
+                coarse_step_stats[current_coarse_timestep].update(
+                    {k: float(v) for k, v in data.items()}
+                )
 
     level_stats_df = pd.DataFrame(level_stats).T
     level_stats_df.index.names = ["nstep_coarse", "level"]
@@ -113,22 +130,36 @@ def plot_level_stats(level_stats: pd.DataFrame):
 
 def plot_time_per_timestep(coarse_step_stats: pd.DataFrame):
     logger.info("Plotting time per timestep")
-    with plt.style.context("paper-onecolumn"):
+    with plt.style.context("paper-onecolumn"), plt.style.context(
+        {"axes.spines.right": True}
+    ):
+
         fig, ax = plt.subplots(constrained_layout=True)
         ax.plot(
             coarse_step_stats.index,
             coarse_step_stats["time_elapsed"],
-            label="Time elapsed",
+            color="tab:blue",
+            lw=0.5,
         )
-        ax.set(
-            xlabel="Coarse timestep",
-            ylabel="Time per coarse timestep (s)",
+        ax.set_xlabel("Coarse timestep")
+        ax.set_ylabel("Time per coarse timestep (s)", color="tab:blue")
+
+        # Twin the y axis
+        ax2 = ax.twinx()
+        ax2.plot(
+            coarse_step_stats.index,
+            coarse_step_stats["dt"]
+            / 1e6
+            / (coarse_step_stats["time_elapsed"] / 3600 / 24),
+            color="tab:orange",
+            lw=0.5,
         )
+        ax2.set_ylabel("Sim time to walltime (Myr/day)", color="tab:orange")
 
         fig.savefig("time_per_timestep.pdf")
 
 
-def main():
+def main(argv: list[str] | None = None):
     import argparse
 
     parser = argparse.ArgumentParser(description="Read RAMSES log files")
@@ -149,7 +180,7 @@ def main():
         help="Plot the time per timestep",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     logger.setLevel("DEBUG")
 
