@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 import unyt as u
@@ -37,7 +38,7 @@ class Isotope:
 
 class NISTNuclideData(dict):
     def __init__(self):
-        with open("./nist_nuclide-data.txt") as f:
+        with (Path(__file__).parent / "nist-nuclide-data.txt").open() as f:
             while True:
                 atomic_number = int(f.readline().split("=")[1])
                 symbol = f.readline().split("=")[1]
