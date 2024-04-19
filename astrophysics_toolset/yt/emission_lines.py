@@ -45,7 +45,7 @@ class NISTNuclideData(dict):
                 mass_number = int(f.readline().split("=")[1])
                 relative_atomic_mass = float(f.readline().split("=")[1].split("(")[0])
                 isotopic_composition = float(
-                    f.readline().split("=").split("(")[0]
+                    f.readline().split("=")[1].split("(")[0]
                 )  # ignored
                 standard_atomic_weight = float(f.readline().split("=")[1].split("(")[0])
                 notes = f.readline().split("=")  # notes: ignored
