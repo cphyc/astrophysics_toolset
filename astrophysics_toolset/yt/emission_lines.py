@@ -101,9 +101,9 @@ def create_emission_line(
             nHe = data["gas", "density"] * (1 - Z) * 0.24 / He_mass
 
             # Ionized fractions
-            xHII = data["ramses", "H_02"]  # H+
-            xHeII = data["ramses", "He_02"]  # He+
-            xHeIII = data["ramses", "He_03"]  # He2+
+            xHII = data["ramses", "hydro_H_02"]  # H+
+            xHeII = data["ramses", "hydro_He_02"]  # He+
+            xHeIII = data["ramses", "hydro_He_03"]  # He2+
 
             # This should really take into account metals, but let's ignore that for now
             return nH * xHII + nHe * (xHeII + 2 * xHeIII)
