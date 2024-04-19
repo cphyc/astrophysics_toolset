@@ -112,6 +112,7 @@ def create_emission_line(
             ("gas", "electron_number_density"),
             function=electron_number_density,
             units="cm**-3",
+            sampling_type="cell",
         )
 
     atom = pyneb.Atom(element, ionization_level)
@@ -151,4 +152,5 @@ def create_emission_line(
         ("gas", f"{element}_{wavelength}A_emissivity"),
         function=emissivity,
         units="erg/s",
+        sampling_type="cell",
     )
