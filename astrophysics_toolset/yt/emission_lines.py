@@ -98,7 +98,7 @@ def create_emission_line(
         def electron_number_density(field, data):
             # Compute hydrogen and helium number density
             Z = data["gas", "metallicity"]
-            nH = data["gas", "density"] * (1 - Z) * 0.74 / H_mass
+            nH = data["gas", "density"] * (1 - Z) * 0.76 / H_mass
             nHe = data["gas", "density"] * (1 - Z) * 0.24 / He_mass
 
             # Ionized fractions
