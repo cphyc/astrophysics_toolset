@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import unyt as u
+from yt.fields.field_detector import FieldDetector
 from yt.utilities.on_demand_imports import NotAModule
 
 
@@ -138,14 +139,19 @@ def create_emission_line(
         nX = (
             data["gas", "density"]
             * data["ramses", f"hydro_{element_full_name}_fraction"]
-            * data["ramses", f"hydro_{element}_{ionization_level:02}"]
+            * data["ramses", f"hydro_{element_full_name}_{ionization_level:02}"]
             / xMass
         )
         V = data["gas", "cell_volume"].in_units("cm**3")
-        eps = data.apply_units(
-            atom.getEmissivity(T, ne, wave=wavelength),
-            "erg/s*cm**3",
-        )
+        if isinstance(data, FieldDetector):
+            eps = data.apply_units(1, "erg/s*cm**3")
+        else:
+            eps = data.apply_units(
+                atom.getEmissivity(T.flatten(), ne.flatten(), wave=wavelength).reshape(
+                    T.shape
+                ),
+                "erg/s*cm**3",
+            )
         return ne * nX * eps * V
 
     ds.add_field(
