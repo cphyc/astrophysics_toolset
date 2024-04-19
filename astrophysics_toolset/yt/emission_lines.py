@@ -161,10 +161,25 @@ def create_emission_line(
         "gas",
         f"{element}{ionization_level}_{wavelength}A_emissivity",
     )
+
+    # Convert integer to roman numeral
+    roman = {
+        1: "I",
+        2: "II",
+        3: "III",
+        4: "IV",
+        5: "V",
+        6: "VI",
+        7: "VII",
+        8: "VIII",
+        9: "IX",
+        10: "X",
+    }[ionization_level]
     ds.add_field(
         field_name,
         function=emissivity,
         units="erg/s",
         sampling_type="cell",
+        display_name=rf"[{element}{roman}]$\lambda{wavelength:.0f}Å$ emissivity",
     )
     return field_name
