@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import unyt as u
 from yt.utilities.on_demand_imports import NotAModule
@@ -30,8 +30,8 @@ class Isotope:
     atomic_number: int
     symbol: str
     mass_number: int
-    relative_atomic_mass: float
-    isotopic_composition: float
+    relative_atomic_mass: Union[float, None]
+    isotopic_composition: Union[float, None]
     standard_atomic_weight: float
     notes: str
 
@@ -40,15 +40,30 @@ class NISTNuclideData(dict):
     def __init__(self):
         with (Path(__file__).parent / "nist-nuclide-data.txt").open() as f:
             while True:
-                atomic_number = int(f.readline().split("=")[1])
-                symbol = f.readline().split("=")[1]
+                _an = f.readline()
+                if not _an:
+                    break
+                atomic_number = int(_an.split("=")[1])
+                symbol = f.readline().split("=")[1].strip()
                 mass_number = int(f.readline().split("=")[1])
-                relative_atomic_mass = float(f.readline().split("=")[1].split("(")[0])
-                isotopic_composition = float(
-                    f.readline().split("=")[1].split("(")[0]
-                )  # ignored
-                standard_atomic_weight = float(f.readline().split("=")[1].split("(")[0])
-                notes = f.readline().split("=")  # notes: ignored
+                _raw = f.readline().split("=")[1].strip()
+                if _raw:
+                    relative_atomic_mass = float(_raw.split("(")[0])
+                else:
+                    relative_atomic_mass = None
+                _composition = f.readline().split("=")[1].strip()
+                if _composition:
+                    isotopic_composition = float(_composition.split("(")[0])
+                else:
+                    isotopic_composition = None
+                _saw = f.readline().split("=")[1].strip()
+                if "[" in _saw:
+                    standard_atomic_weight = float(
+                        _saw.replace("[", "").replace("]", "")
+                    )
+                else:
+                    standard_atomic_weight = float(_saw.split("(")[0])
+                notes = f.readline().split("=")[1].strip()
                 f.readline()
 
                 self[f"{symbol}{mass_number}"] = Isotope(
