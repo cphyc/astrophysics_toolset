@@ -89,7 +89,7 @@ nuclide_data = NISTNuclideData()
 
 def create_emission_line(
     ds, element: str, ionization_level: int, wavelength: Optional[float] = None
-):
+) -> tuple[str, str]:
     # If electron number density is not found, create it from
     if ("gas", "electron_number_density") not in ds.derived_field_list:
         H_mass = nuclide_data.getStandardAtomicWeight("H") * u.mp
@@ -147,16 +147,24 @@ def create_emission_line(
             eps = data.apply_units(1, "erg/s*cm**3")
         else:
             eps = data.apply_units(
-                atom.getEmissivity(T.flatten(), ne.flatten(), wave=wavelength).reshape(
-                    T.shape
-                ),
+                atom.getEmissivity(
+                    T.flatten(),
+                    ne.flatten(),
+                    wave=wavelength,
+                    product=False,
+                ).reshape(T.shape),
                 "erg/s*cm**3",
             )
         return ne * nX * eps * V
 
+    field_name = (
+        "gas",
+        f"{element}{ionization_level}_{wavelength}A_emissivity",
+    )
     ds.add_field(
-        ("gas", f"{element}_{wavelength}A_emissivity"),
+        field_name,
         function=emissivity,
         units="erg/s",
         sampling_type="cell",
     )
+    return field_name
