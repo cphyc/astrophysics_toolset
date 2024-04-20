@@ -87,6 +87,15 @@ def add_element_densities(ds):
                 8: "VIII",
                 9: "IX",
                 10: "X",
+                11: "XI",
+                12: "XII",
+                13: "XIII",
+                14: "XIV",
+                15: "XV",
+                16: "XVI",
+                17: "XVII",
+                18: "XVIII",
+                19: "XIX",
             }[iion]
 
             # Ion fractions
