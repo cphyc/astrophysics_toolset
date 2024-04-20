@@ -1,7 +1,8 @@
 from functools import partial
 
 import unyt as u
-from emission_lines import nuclide_data
+
+from astrophysics_toolset.yt.emission_lines import nuclide_data
 
 elements = (
     "H",
