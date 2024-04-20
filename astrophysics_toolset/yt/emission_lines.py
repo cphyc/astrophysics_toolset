@@ -265,7 +265,7 @@ def create_emission_line(
             * data["ramses", f"hydro_{element_full_name}_{ionization_level:02}"]
             / xMass
         )
-        V = data["gas", "cell_volume"].in_units("cm**3")
+
         if isinstance(data, FieldDetector):
             eps = data.apply_units(1, "erg/s*cm**3")
         else:
@@ -278,7 +278,7 @@ def create_emission_line(
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
-        return ne * nX * eps * V
+        return ne * nX * eps
 
     field_name = (
         "gas",
@@ -301,7 +301,7 @@ def create_emission_line(
     ds.add_field(
         field_name,
         function=emissivity,
-        units="erg/s",
+        units="erg/s/cm**3",
         sampling_type="cell",
         display_name=rf"[{element}{roman}]$\lambda{wavelength:.0f}Å$ emissivity",
     )
