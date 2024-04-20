@@ -39,7 +39,7 @@ def add_element_densities(ds):
 
     for elem in elements:
         elem_fraction = ("ramses", f"hydro_{elem}_fraction")
-        elem_symbol = name2symbol.get(elem, elem)
+        elem_symbol = name2symbol.get(elem.capitalize(), elem.capitalize())
         if elem_fraction not in ds.field_list:
             continue
 
@@ -49,6 +49,7 @@ def add_element_densities(ds):
             function=partial(element_density, elem_fraction=elem_fraction),
             units="g/cm**3",
             sampling_type="cell",
+            display_name=f"{elem_symbol} Density",
         )
         if elem == "CO":
             atomic_weight = (
@@ -67,7 +68,7 @@ def add_element_densities(ds):
             ),
             units="cm**-3",
             sampling_type="cell",
-            display_name=f"{elem_symbol} number density",
+            display_name=f"{elem_symbol} Number Density",
         )
 
         for iion in range(20):
@@ -106,7 +107,7 @@ def add_element_densities(ds):
                 ),
                 units="g/cm**3",
                 sampling_type="cell",
-                display_name=f"{elem_symbol}{roman} number density",
+                display_name=f"{elem_symbol}{roman} Number Density",
             )
 
             # Ion number densities
@@ -120,5 +121,5 @@ def add_element_densities(ds):
                 ),
                 units="cm**-3",
                 sampling_type="cell",
-                display_name=f"{elem_symbol}{roman} number density",
+                display_name=f"{elem_symbol}{roman} Number Density",
             )
