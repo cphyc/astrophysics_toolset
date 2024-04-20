@@ -127,6 +127,12 @@ symbol2name = {
     "Lv": "Livermorium",
     "Ts": "Tennessine",
     "Og": "Oganesson",
+    "Uut": "Nihonium",
+    "Uuq": "Flerovium",
+    "Uup": "Moscovium",
+    "Uuh": "Livermorium",
+    "Uus": "Tennessine",
+    "Uuo": "Oganesson",
 }
 
 
