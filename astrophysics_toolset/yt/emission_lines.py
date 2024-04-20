@@ -8,6 +8,8 @@ from yt.utilities.on_demand_imports import NotAModule
 
 symbol2name = {
     "H": "Hydrogen",
+    "D": "Deuterium",
+    "T": "Tritium",
     "He": "Helium",
     "Li": "Lithium",
     "Be": "Beryllium",
