@@ -210,7 +210,10 @@ class NISTNuclideData(dict):
 
     def getStandardAtomicWeight(self, symbolOrName: str) -> float:
         for isotope in self.values():
-            if isotope.symbol == symbolOrName or isotope.name == symbolOrName:
+            if (
+                isotope.symbol == symbolOrName
+                or isotope.name.lower() == symbolOrName.lower()
+            ):
                 return isotope.standard_atomic_weight
         raise ValueError(f"Symbol or name {symbolOrName} not found in NIST data")
 
