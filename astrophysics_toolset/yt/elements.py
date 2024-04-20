@@ -49,13 +49,20 @@ def add_element_densities(ds):
             units="g/cm**3",
             sampling_type="cell",
         )
+        if elem == "CO":
+            atomic_weight = (
+                nuclide_data.getStandardAtomicWeight("C") * u.mp
+                + nuclide_data.getStandardAtomicWeight("O") * u.mp
+            )
+        else:
+            atomic_weight = nuclide_data.getStandardAtomicWeight(elem) * u.mp
         # Element-by-element number densities
         ds.add_field(
             ("gas", f"{elem}_number_density"),
             function=partial(
                 element_number_density,
                 elem_fraction=elem_fraction,
-                atomic_mass=nuclide_data.getStandardAtomicWeight(elem) * u.mp,
+                atomic_mass=atomic_weight,
             ),
             units="cm**-3",
             sampling_type="cell",
