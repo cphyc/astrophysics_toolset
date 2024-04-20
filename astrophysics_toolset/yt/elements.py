@@ -15,7 +15,7 @@ elements = (
     "nitrogen",
     "oxygen",
     "silicon",
-    "suflur",
+    "sulfur",
 )
 
 
