@@ -135,6 +135,8 @@ symbol2name = {
     "Uuo": "Oganesson",
 }
 
+name2symbol = {v: k for k, v in symbol2name.items()}
+
 
 class PynebImports:
     _name = "pyneb"

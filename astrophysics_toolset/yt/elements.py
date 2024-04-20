@@ -2,7 +2,7 @@ from functools import partial
 
 import unyt as u
 
-from astrophysics_toolset.yt.emission_lines import nuclide_data
+from astrophysics_toolset.yt.emission_lines import name2symbol, nuclide_data
 
 elements = (
     "H",
@@ -39,6 +39,7 @@ def add_element_densities(ds):
 
     for elem in elements:
         elem_fraction = ("ramses", f"hydro_{elem}_fraction")
+        elem_symbol = name2symbol.get(elem, elem)
         if elem_fraction not in ds.field_list:
             continue
 
@@ -66,12 +67,27 @@ def add_element_densities(ds):
             ),
             units="cm**-3",
             sampling_type="cell",
+            display_name=f"{elem_symbol} number density",
         )
 
         for iion in range(20):
             ion_fraction = ("ramses", f"hydro_{elem}_{iion:02}")
             if ion_fraction not in ds.field_list:
                 continue
+
+            # Convert integer to roman numeral
+            roman = {
+                1: "I",
+                2: "II",
+                3: "III",
+                4: "IV",
+                5: "V",
+                6: "VI",
+                7: "VII",
+                8: "VIII",
+                9: "IX",
+                10: "X",
+            }[iion]
 
             # Ion fractions
             ds.add_field(
@@ -81,6 +97,7 @@ def add_element_densities(ds):
                 ),
                 units="g/cm**3",
                 sampling_type="cell",
+                display_name=f"{elem_symbol}{roman} number density",
             )
 
             # Ion number densities
@@ -94,4 +111,5 @@ def add_element_densities(ds):
                 ),
                 units="cm**-3",
                 sampling_type="cell",
+                display_name=f"{elem_symbol}{roman} number density",
             )
