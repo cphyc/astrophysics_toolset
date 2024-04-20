@@ -79,7 +79,7 @@ def add_element_densities(ds):
                 function=partial(
                     ion_density, elem_fraction=elem_fraction, ion_fraction=ion_fraction
                 ),
-                units="dimensionless",
+                units="g/cm**3",
                 sampling_type="cell",
             )
 
