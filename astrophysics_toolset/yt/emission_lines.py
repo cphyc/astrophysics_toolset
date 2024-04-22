@@ -223,37 +223,11 @@ class NISTNuclideData(dict):
 nuclide_data = NISTNuclideData()
 
 
-def create_emission_line(
-    ds, element: str, ionization_level: int, wavelength: Optional[float] = None
+def _create_transition_from_wavelength(
+    ds, atom: "pyneb.Atom", wavelength: float
 ) -> tuple[str, str]:
-    # If electron number density is not found, create it from
-    if ("gas", "electron_number_density") not in ds.derived_field_list:
-        H_mass = nuclide_data.getStandardAtomicWeight("H") * u.mp
-        He_mass = nuclide_data.getStandardAtomicWeight("He") * u.mp
-
-        def electron_number_density(field, data):
-            # Compute hydrogen and helium number density
-            Z = data["gas", "metallicity"]
-            nH = data["gas", "density"] * (1 - Z) * 0.76 / H_mass
-            nHe = data["gas", "density"] * (1 - Z) * 0.24 / He_mass
-
-            # Ionized fractions
-            xHII = data["ramses", "hydro_H_02"]  # H+
-            xHeII = data["ramses", "hydro_He_02"]  # He+
-            xHeIII = data["ramses", "hydro_He_03"]  # He2+
-
-            # This should really take into account metals, but let's ignore that for now
-            return nH * xHII + nHe * (xHeII + 2 * xHeIII)
-
-        ds.add_field(
-            ("gas", "electron_number_density"),
-            function=electron_number_density,
-            units="cm**-3",
-            sampling_type="cell",
-        )
-
-    atom = pyneb.Atom(element, ionization_level)
-
+    element = atom.elem
+    ionization_level = atom.spec
     name_mapping = {
         "Ca": "calcium",
         "C": "carbon",
@@ -269,7 +243,7 @@ def create_emission_line(
 
     xMass = nuclide_data.getStandardAtomicWeight(element) * u.mp
 
-    def emissivity(field, data):
+    def ion_emissivity(field, data):
         T = data["gas", "temperature"].to("K")
         ne = data["gas", "electron_number_density"].to("cm**-3")
         nX = (
@@ -311,11 +285,112 @@ def create_emission_line(
         9: "IX",
         10: "X",
     }[ionization_level]
+
     ds.add_field(
         field_name,
-        function=emissivity,
+        function=ion_emissivity,
         units="erg/s/cm**3",
         sampling_type="cell",
-        display_name=rf"[{element}{roman}]$\lambda{wavelength:.0f}Å$ emissivity",
+        display_name=rf"[{element}{roman}]$\lambda{wavelength:.0f}Å$ Emissivity",
+    )
+
+    return field_name
+
+
+def _create_hydrogen_emission(
+    ds, atom: "pyneb.Atom", *, lev_i: int, lev_j: int, name: str, name_latex: str
+) -> tuple[str, str]:
+    HMass = nuclide_data.getStandardAtomicWeight("H") * u.mp
+
+    def H_emissivity(field, data):
+        T = data["gas", "temperature"].to("K")
+        ne = data["gas", "electron_number_density"].to("cm**-3")
+        Z = data["gas", "metallicity"]
+        nH = (
+            data["gas", "density"]
+            * data["ramses", "hydro_H_01"]
+            * (1 - Z)
+            * 0.76
+            / HMass
+        )
+
+        if isinstance(data, FieldDetector):
+            eps = data.apply_units(1, "erg/s*cm**3")
+        else:
+            eps = data.apply_units(
+                atom.getEmissivity(
+                    T.flatten(),
+                    ne.flatten(),
+                    lev_i=lev_i,
+                    lev_j=lev_j,
+                    product=False,
+                ).reshape(T.shape),
+                "erg/s*cm**3",
+            )
+        return ne * nH * eps
+
+    field_name = ("gas", f"{name}_emissivity")
+    ds.add_field(
+        field_name,
+        function=H_emissivity,
+        units="erg/s/cm**3",
+        sampling_type="cell",
+        display_name=f"{name_latex} Emissivity",
     )
     return field_name
+
+
+def create_emission_line(
+    ds, element: str, ionization_level: int, wavelength: Optional[float] = None
+) -> tuple[str, str]:
+    # If electron number density is not found, create it from
+    if ("gas", "electron_number_density") not in ds.derived_field_list:
+        H_mass = nuclide_data.getStandardAtomicWeight("H") * u.mp
+        He_mass = nuclide_data.getStandardAtomicWeight("He") * u.mp
+
+        def electron_number_density(field, data):
+            # Compute hydrogen and helium number density
+            Z = data["gas", "metallicity"]
+            nH = data["gas", "density"] * (1 - Z) * 0.76 / H_mass
+            nHe = data["gas", "density"] * (1 - Z) * 0.24 / He_mass
+
+            # Ionized fractions
+            xHII = data["ramses", "hydro_H_02"]  # H+
+            xHeII = data["ramses", "hydro_He_02"]  # He+
+            xHeIII = data["ramses", "hydro_He_03"]  # He2+
+
+            # This should really take into account metals, but let's ignore that for now
+            return nH * xHII + nHe * (xHeII + 2 * xHeIII)
+
+        ds.add_field(
+            ("gas", "electron_number_density"),
+            function=electron_number_density,
+            units="cm**-3",
+            sampling_type="cell",
+        )
+
+    if element not in ("Halpha", "Hbeta", "Hgamma"):
+        atom = pyneb.Atom(element, ionization_level)
+        return _create_transition_from_wavelength(ds, atom, wavelength)
+    elif element == "Halpha":
+        atom = pyneb.RecAtom("H", 1)
+        lev_i = 3
+        lev_j = 2
+        name = "Halpha"
+        name_latex = r"${\rm H}\alpha$"
+    elif element == "Hbeta":
+        atom = pyneb.RecAtom("H", 1)
+        lev_i = 4
+        lev_j = 2
+        name = "Hbeta"
+        name_latex = r"${\rm H}\beta$"
+    elif element == "Hgamma":
+        atom = pyneb.RecAtom("H", 1)
+        lev_i = 5
+        lev_j = 2
+        name = "Hgamma"
+        name_latex = r"${\rm H}\gamma$"
+
+    return _create_hydrogen_emission(
+        ds, atom, lev_i=lev_i, lev_j=lev_j, name=name, name_latex=name_latex
+    )
