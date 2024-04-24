@@ -260,9 +260,7 @@ def _create_transition_from_wavelength(
         10: "X",
     }[ionization_level]
 
-    solutions = np.argwhere(
-        np.abs(wavelength - atom.lineList) / wavelength < 1e-2
-    ).flatten()
+    solutions = np.argwhere(np.abs(wavelength - atom.lineList) < 2).flatten()
 
     if len(solutions) == 0 or len(solutions) > 2:
         raise ValueError(f"No line transition found for wavelength {wavelength} Å.")
@@ -311,7 +309,7 @@ def _create_transition_from_wavelength(
                 units="erg/s/cm**3",
                 sampling_type="cell",
                 display_name=(
-                    f"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å Line Ratio"
+                    rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å Line Ratio"
                 ),
             )
             all_lines.append(field_name)
