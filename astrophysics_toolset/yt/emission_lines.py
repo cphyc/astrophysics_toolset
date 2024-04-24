@@ -278,14 +278,14 @@ def _create_transition_from_wavelength(
         def line_sum(field, data, l1, l2):
             return data[l1] + data[l2]
 
-        all_lines = [line for (_, line) in lines]
+        all_lines = lines.copy()
 
         for l1, l2 in product(lines, repeat=2):
             if l1 == l2:
                 continue
 
             # Add doublet emissivity
-            field_name = (
+            field_name: tuple[str, str] = (
                 "gas",
                 f"{element}{ionization_level}_{wavelength}A_doublet_emissivity",
             )
@@ -295,13 +295,13 @@ def _create_transition_from_wavelength(
                 units="",
                 sampling_type="cell",
                 display_name=(
-                    f"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Emissivity"
+                    rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Emissivity"
                 ),
             )
             all_lines.append(field_name)
 
             # Add line ratio
-            field_name = (
+            field_name: tuple[str, str] = (
                 "gas",
                 f"{element}{ionization_level}_{wavelength}A_doublet_ratio",
             )
