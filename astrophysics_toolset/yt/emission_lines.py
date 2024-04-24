@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+from functools import partial
+from itertools import product
 from pathlib import Path
 from typing import Optional, Union
 
+import numpy as np
 import unyt as u
 from yt.fields.field_detector import FieldDetector
 from yt.utilities.on_demand_imports import NotAModule
@@ -225,7 +228,7 @@ nuclide_data = NISTNuclideData()
 
 def _create_transition_from_wavelength(
     ds, atom: "pyneb.Atom", wavelength: float
-) -> tuple[str, str]:
+) -> list[tuple[str, str]]:
     element = atom.elem
     ionization_level = atom.spec
     name_mapping = {
@@ -242,6 +245,78 @@ def _create_transition_from_wavelength(
     element_full_name = name_mapping[element]
 
     xMass = nuclide_data.getStandardAtomicWeight(element) * u.mp
+
+    # Convert integer to roman numeral
+    roman = {
+        1: "I",
+        2: "II",
+        3: "III",
+        4: "IV",
+        5: "V",
+        6: "VI",
+        7: "VII",
+        8: "VIII",
+        9: "IX",
+        10: "X",
+    }[ionization_level]
+
+    solutions = np.argwhere(
+        np.abs(wavelength - atom.lineList) / wavelength < 1e-2
+    ).flatten()
+
+    if len(solutions) == 0 or len(solutions) > 2:
+        raise ValueError(f"No line transition found for wavelength {wavelength} Å.")
+    elif len(solutions) == 2:
+        lines = [
+            _create_transition_from_wavelength(ds, atom, atom.lineList[ind])[0]
+            for ind in solutions
+        ]
+
+        def line_ratio(field, data, l1, l2):
+            return data[l1] / data[l2]
+
+        def line_sum(field, data, l1, l2):
+            return data[l1] + data[l2]
+
+        all_lines = [line for (_, line) in lines]
+
+        for l1, l2 in product(lines, repeat=2):
+            if l1 == l2:
+                continue
+
+            # Add doublet emissivity
+            field_name = (
+                "gas",
+                f"{element}{ionization_level}_{wavelength}A_doublet_emissivity",
+            )
+            ds.add_field(
+                field_name,
+                function=partial(line_sum, l1=l1, l2=l2),
+                units="",
+                sampling_type="cell",
+                display_name=(
+                    f"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Emissivity"
+                ),
+            )
+            all_lines.append(field_name)
+
+            # Add line ratio
+            field_name = (
+                "gas",
+                f"{element}{ionization_level}_{wavelength}A_doublet_ratio",
+            )
+            ds.add_field(
+                field_name,
+                function=partial(line_ratio, l1=l1, l2=l2),
+                units="erg/s/cm**3",
+                sampling_type="cell",
+                display_name=(
+                    f"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å Line Ratio"
+                ),
+            )
+            all_lines.append(field_name)
+
+            return all_lines
 
     def ion_emissivity(field, data):
         T = data["gas", "temperature"].to("K")
@@ -272,20 +347,6 @@ def _create_transition_from_wavelength(
         f"{element}{ionization_level}_{wavelength}A_emissivity",
     )
 
-    # Convert integer to roman numeral
-    roman = {
-        1: "I",
-        2: "II",
-        3: "III",
-        4: "IV",
-        5: "V",
-        6: "VI",
-        7: "VII",
-        8: "VIII",
-        9: "IX",
-        10: "X",
-    }[ionization_level]
-
     ds.add_field(
         field_name,
         function=ion_emissivity,
@@ -294,7 +355,7 @@ def _create_transition_from_wavelength(
         display_name=rf"[{element}{roman}]$\lambda{wavelength:.0f}Å$ Emissivity",
     )
 
-    return field_name
+    return [field_name]
 
 
 def _create_hydrogen_emission(
