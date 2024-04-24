@@ -296,7 +296,7 @@ def _create_transition_from_wavelength(
             ds.add_field(
                 field_name,
                 function=partial(line_sum, l1=l1, l2=l2),
-                units="",
+                units="erg/s/cm**3",
                 sampling_type="cell",
                 display_name=(
                     rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Emissivity"
@@ -312,7 +312,7 @@ def _create_transition_from_wavelength(
             ds.add_field(
                 field_name,
                 function=partial(line_ratio, l1=l1, l2=l2),
-                units="erg/s/cm**3",
+                units="",
                 sampling_type="cell",
                 display_name=(
                     rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å Line Ratio"
