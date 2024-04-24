@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import partial
 from itertools import product
+from math import floor
 from pathlib import Path
 from typing import Optional, Union
 
@@ -229,6 +230,8 @@ nuclide_data = NISTNuclideData()
 def _create_transition_from_wavelength(
     ds, atom: "pyneb.Atom", wavelength: float
 ) -> list[tuple[str, str]]:
+    if int(wavelength) == wavelength:
+        wavelength = int(wavelength)
     element = atom.elem
     ionization_level = atom.spec
     name_mapping = {
@@ -265,8 +268,11 @@ def _create_transition_from_wavelength(
     if len(solutions) == 0 or len(solutions) > 2:
         raise ValueError(f"No line transition found for wavelength {wavelength} Å.")
     elif len(solutions) == 2:
+        decimals = -floor(np.log10(np.min(np.abs(np.diff(atom.lineList[solutions])))))
         lines = [
-            _create_transition_from_wavelength(ds, atom, atom.lineList[ind])[0]
+            _create_transition_from_wavelength(
+                ds, atom, np.round(atom.lineList[ind], decimals=decimals)
+            )[0]
             for ind in solutions
         ]
 
