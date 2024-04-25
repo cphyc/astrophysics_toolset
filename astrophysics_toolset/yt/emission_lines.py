@@ -332,8 +332,7 @@ def _create_transition_from_wavelength(
         tem=temperatures, den=e_densities, wave=wavelength, product=True
     )
     emissivity = RegularGridInterpolator(
-        np.log10(temperatures),
-        np.log10(e_densities),
+        (np.log10(temperatures), np.log10(e_densities)),
         em_grid,
         bounds_error=False,
         fill_value=0,
@@ -386,8 +385,7 @@ def _create_hydrogen_emission(
         tem=temperatures, den=e_densities, lev_i=lev_i, lev_v=lev_j, product=True
     )
     emissivity = RegularGridInterpolator(
-        np.log10(temperatures),
-        np.log10(e_densities),
+        (np.log10(temperatures), np.log10(e_densities)),
         em_grid,
         bounds_error=False,
         fill_value=0,
