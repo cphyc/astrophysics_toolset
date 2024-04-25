@@ -353,8 +353,7 @@ def _create_transition_from_wavelength(
         else:
             eps = data.apply_units(
                 emissivity(
-                    T.flatten(),
-                    ne.flatten(),
+                    (T.flatten(), ne.flatten()),
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
@@ -408,8 +407,7 @@ def _create_hydrogen_emission(
         else:
             eps = data.apply_units(
                 emissivity(
-                    T.flatten(),
-                    ne.flatten(),
+                    (T.flatten(), ne.flatten()),
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
