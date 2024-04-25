@@ -7,6 +7,7 @@ from typing import Optional, Union
 
 import numpy as np
 import unyt as u
+from scipy.interpolate import RegularGridInterpolator
 from yt.fields.field_detector import FieldDetector
 from yt.utilities.on_demand_imports import NotAModule
 
@@ -227,6 +228,11 @@ class NISTNuclideData(dict):
 nuclide_data = NISTNuclideData()
 
 
+n_vals = 400
+temperatures = np.logspace(1, 9, n_vals)
+e_densities = np.logspace(-7, 6, n_vals)
+
+
 def _create_transition_from_wavelength(
     ds, atom: "pyneb.Atom", wavelength: float
 ) -> list[tuple[str, str]]:
@@ -322,6 +328,17 @@ def _create_transition_from_wavelength(
 
             return all_lines
 
+    em_grid = atom.getEmissivity(
+        tem=temperatures, den=e_densities, wave=wavelength, product=True
+    )
+    emissivity = RegularGridInterpolator(
+        np.log10(temperatures),
+        np.log10(e_densities),
+        em_grid,
+        bounds_error=False,
+        fill_value=0,
+    )
+
     def ion_emissivity(field, data):
         T = data["gas", "temperature"].to("K")
         ne = data["gas", "electron_number_density"].to("cm**-3")
@@ -336,11 +353,9 @@ def _create_transition_from_wavelength(
             eps = data.apply_units(1, "erg/s*cm**3")
         else:
             eps = data.apply_units(
-                atom.getEmissivity(
+                emissivity(
                     T.flatten(),
                     ne.flatten(),
-                    wave=wavelength,
-                    product=False,
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
@@ -367,6 +382,17 @@ def _create_hydrogen_emission(
 ) -> tuple[str, str]:
     HMass = nuclide_data.getStandardAtomicWeight("H") * u.mp
 
+    em_grid = atom.getEmissivity(
+        tem=temperatures, den=e_densities, lev_i=lev_i, lev_v=lev_j, product=True
+    )
+    emissivity = RegularGridInterpolator(
+        np.log10(temperatures),
+        np.log10(e_densities),
+        em_grid,
+        bounds_error=False,
+        fill_value=0,
+    )
+
     def H_emissivity(field, data):
         T = data["gas", "temperature"].to("K")
         ne = data["gas", "electron_number_density"].to("cm**-3")
@@ -383,12 +409,9 @@ def _create_hydrogen_emission(
             eps = data.apply_units(1, "erg/s*cm**3")
         else:
             eps = data.apply_units(
-                atom.getEmissivity(
+                emissivity(
                     T.flatten(),
                     ne.flatten(),
-                    lev_i=lev_i,
-                    lev_j=lev_j,
-                    product=False,
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
