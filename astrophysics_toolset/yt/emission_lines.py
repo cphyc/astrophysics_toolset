@@ -430,7 +430,7 @@ def _create_hydrogen_emission(
 
 def create_emission_line(
     ds, element: str, ionization_level: int, wavelength: Optional[float] = None
-) -> tuple[str, str]:
+) -> list[tuple[str, str]]:
     # If electron number density is not found, create it from
     if ("gas", "electron_number_density") not in ds.derived_field_list:
         H_mass = nuclide_data.getStandardAtomicWeight("H") * u.mp
@@ -479,6 +479,8 @@ def create_emission_line(
         name = "Hgamma"
         name_latex = r"${\rm H}\gamma$"
 
-    return _create_hydrogen_emission(
-        ds, atom, lev_i=lev_i, lev_j=lev_j, name=name, name_latex=name_latex
-    )
+    return [
+        _create_hydrogen_emission(
+            ds, atom, lev_i=lev_i, lev_j=lev_j, name=name, name_latex=name_latex
+        )
+    ]
