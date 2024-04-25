@@ -382,7 +382,7 @@ def _create_hydrogen_emission(
     HMass = nuclide_data.getStandardAtomicWeight("H") * u.mp
 
     em_grid = atom.getEmissivity(
-        tem=temperatures, den=e_densities, lev_i=lev_i, lev_v=lev_j, product=True
+        tem=temperatures, den=e_densities, lev_i=lev_i, lev_j=lev_j, product=True
     )
     emissivity = RegularGridInterpolator(
         (np.log10(temperatures), np.log10(e_densities)),
