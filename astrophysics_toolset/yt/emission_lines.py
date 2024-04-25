@@ -321,7 +321,7 @@ def _create_transition_from_wavelength(
                 units="",
                 sampling_type="cell",
                 display_name=(
-                    rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å Line Ratio"
+                    rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Line Ratio"
                 ),
             )
             all_lines.append(field_name)
