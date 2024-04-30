@@ -1,13 +1,96 @@
 [build-system]
 requires = [
-   "setuptools>=19.6",
-   "wheel",
-   "Cython>=0.29.21",
-   "oldest-supported-numpy",
+    "setuptools>=61.2",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "astrophysics_toolset"
+version = "0.3.0"
+description = "Python package with some astrophysics-related stuff"
+authors = [
+    { name = "Corentin Cadiou", email = "c.cadiou@ucl.ac.uk" },
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+keywords = [
+    "astrophysics_toolset",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "cython-fortran-file>=0.2.2",
+    "joblib>=1.0",
+    "kaitaistruct>=0.8",
+    "numba>=0.40",
+    "numpy>=1.18",
+    "scipy>=1.4.1",
+    "yt>=4.0",
 ]
 
+[project.readme]
+file = "README.rst"
+content-type = "text/x-rst"
+
+[project.license]
+text = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/cphyc/astrophysics_toolset"
+
+[project.optional-dependencies]
+all = [
+    "h5py>=3.0.0",
+    "pyorick>=1.4",
+]
+test = [
+    "pytest~=6.2.5",
+]
+
+[project.scripts]
+astrophysics_toolset = "astrophysics_toolset.cli:main"
+ramses_change_ncpu = "astrophysics_toolset.ramses.ramses_change_ncpu:main"
+yorick2hdf = "astrophysics_toolset.io.yorick:main"
+ramses_gather_lightcone = "astrophysics_toolset.ramses.lightcone:main"
+read_logs = "astrophysics_toolset.ramses.read_logs:main"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+license-files = [
+    "LICENSE",
+]
+
+[tool.setuptools.packages.find]
+namespaces = false
+
+[tool.bumpversion]
+current_version = "0.3.0"
+commit = "True"
+tag = "True"
+
+[tool.bumpversion.file.setup.cfg]
+search = "version = {current_version}"
+replace = "version = {new_version}"
+
+[tool.bumpversion.file."astrophysics_toolset/__init__".py]
+search = "__version__ = '{current_version}'"
+replace = "__version__ = '{new_version}'"
+
+[tool.distutils.bdist_wheel]
+universal = 1
+
+[tool.aliases]
+test = "pytest"
+
 [tool.ruff]
-select = ["E", "C", "F", "U", "B", "A", "YTT", "S", "N"]
+select = ["E", "C", "F", "UP", "B", "A", "YTT", "S", "N"]
 ignore = [
   "N802", "N803", "N806",  # variable should be lowercase
   "C901", # function too complex
