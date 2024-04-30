@@ -6,34 +6,6 @@ requires = [
    "oldest-supported-numpy",
 ]
 
-[tool.black]
-line-length = 88
-target-version = ['py37', 'py38', 'py39', 'py310']
-
-[tool.isort]
-profile = "black"
-combine_as_imports = true
-skip =  []
-known_third_party = [
-  "IPython",
-  "nose",
-  "numpy",
-  "sympy",
-  "matplotlib",
-  "unyt",
-  "git",
-  "yaml",
-  "dateutil",
-  "requests",
-  "coverage",
-  "pytest",
-  "pyx",
-  "glue",
-  "yt"
-]
-known_first_party = ["astrophysics_toolset"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
-
 [tool.ruff]
 select = ["E", "C", "F", "U", "B", "A", "YTT", "S", "N"]
 ignore = [
