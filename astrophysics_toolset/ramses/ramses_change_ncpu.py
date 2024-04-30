@@ -795,14 +795,14 @@ def main():  # noqa: C901
     for numbl in data[1]["numbl"]:
         for c in numbl:
             print("%7d" % c, end="")
-        print("| %s" % numbl.sum())
+        print(f"| {numbl.sum()}")
 
     print(" new structure ".center(120, "="))
 
     for numbl in new_data[1]["numbl"]:
         for c in numbl:
             print("%7d" % c, end="")
-        print("| %s" % numbl.sum())
+        print(f"| {numbl.sum()}")
 
     octree.check_tree(999)
 
@@ -1058,7 +1058,7 @@ def main():  # noqa: C901
                 ret = particle_file_reader(fh, {})
                 headers, data_orig[icpu + 1] = ret
                 pos = np.stack(
-                    [ret[1]["io", "particle_position_%s" % k] for k in "xyz"], axis=-1
+                    [ret[1]["io", f"particle_position_{k}"] for k in "xyz"], axis=-1
                 )
                 ipos = np.round(pos * bscale).astype(np.int64)
                 particle_new_domain[icpu + 1] = np.searchsorted(
@@ -1150,7 +1150,7 @@ def test_using_yt(args, CONFIG):
         for d in "xyz":
             p = yt.ProjectionPlot(ds, d, "DM_cic")
             images.extend(p.save(f"tmp/frames/{d}_{prefix}"))
-    print("You can compare the images look the same using the images from %s" % images)
+    print(f"You can compare the images look the same using the images from {images}")
 
     # %%
     images_with_diff = list(images)
@@ -1197,7 +1197,7 @@ def test_using_yt(args, CONFIG):
         + [f"{k}-velocity" for k in "xyz"]
         + list("xyz")
     ):
-        print("Checking %s" % field, end="... ")
+        print(f"Checking {field}", end="... ")
         vnew = extract_field(ad_new, field, order["new"])
         vref = extract_field(ad_ref, field, order["ref"])
 
