@@ -40,7 +40,7 @@ def deep_dict_compare(a, b, prefix=None, print_pre=""):
     key_b = set(b.keys())
 
     if len(key_a.difference(key_b)) > 0:
-        raise AssertionError("Found different set of keys at %s" % prefix)
+        raise AssertionError(f"Found different set of keys at {prefix}")
 
     for key, va in a.items():
         print(print_pre, end="")
@@ -49,7 +49,7 @@ def deep_dict_compare(a, b, prefix=None, print_pre=""):
             raise AssertionError(f"Type differ at {prefix}[{key}]")
 
         if isinstance(va, dict):
-            print("checking key «%s»" % key)
+            print(f"checking key «{key}»")
             deep_dict_compare(va, vb, prefix + [key], print_pre + "\t")
         else:
             print(f"comparing {prefix} {key}", end="...")

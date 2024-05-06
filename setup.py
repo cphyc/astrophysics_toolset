@@ -17,6 +17,6 @@ extensions = [
 
 setup(
     ext_modules=cythonize(
-        extensions, language_level=3, annotate=True, gdb_debug=True, nthreads=4
+        extensions, language_level=3, nthreads=4
     ),
 )

@@ -34,8 +34,8 @@ class PDBReader:
 
         if not self.check(fname):
             raise Exception(
-                "Unrecognized file format for file %s, "
-                "could not read as PDB file." % fname
+                f"Unrecognized file format for file {fname}, "
+                "could not read as PDB file."
             )
 
         self._known_types = self._known_types.copy()
@@ -123,8 +123,8 @@ class PDBReader:
         for k in keys:
             node = node.get(k, None)
             if node is None:
-                raise KeyError("Provided path does not exist on file: %s" % path)
-        cmd = "f.%s" % path.replace("/", ".")
+                raise KeyError(f"Provided path does not exist on file: {path}")
+        cmd = "f.{}".format(path.replace("/", "."))
 
         value = self.yo(f"={cmd}")
         self._data[path] = value

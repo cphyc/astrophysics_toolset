@@ -52,8 +52,8 @@ def top_hat_filter(i, R):
     """
     if i.ndim != 3:
         raise NotImplementedError(
-            "Top-Hat filtering has not been implemented for dimensions ≠ 3, got %s."
-            % i.ndim
+            "Top-Hat filtering has not been implemented "
+            f"for dimensions ≠ 3, got {i.ndim}."
         )
     ik = np.fft.rfftn(i)
     d = 1 / (2 * np.pi)
