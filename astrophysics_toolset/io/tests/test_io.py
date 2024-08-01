@@ -45,7 +45,7 @@ def deep_dict_compare(a, b, prefix=None, print_pre=""):
     for key, va in a.items():
         print(print_pre, end="")
         vb = b[key]
-        if type(va) != type(vb):
+        if type(va) is not type(vb):
             raise AssertionError(f"Type differ at {prefix}[{key}]")
 
         if isinstance(va, dict):
