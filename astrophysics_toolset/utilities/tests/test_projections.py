@@ -36,7 +36,7 @@ def test_cic(seed):
     X = np.random.rand(10, 3)
     dens = cic_projection(X, 4)
     true_ans = [
-        dens.ptp(),
+        np.ptp(dens),
         dens.std(),
         dens.min(),
         dens.max(),
