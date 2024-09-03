@@ -1,5 +1,6 @@
 import re
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Optional
+from collections.abc import Iterable, Sequence
 
 from ..utilities.decorators import read_files
 from ..utilities.logging import logger
@@ -85,7 +86,7 @@ class PDBReader:
         # Now parse the structure
         remaining = lines[1:-1]  # last line is just }
 
-        variables: Dict[str, Tuple[str, Tuple[int, ...]]] = {}
+        variables: dict[str, tuple[str, tuple[int, ...]]] = {}
         for line in remaining:
             tmp = ARRAY_RE.match(line)
             if tmp:
@@ -133,7 +134,7 @@ class PDBReader:
     def __getitem__(self, key):
         return self.get(key)
 
-    def walk_structure(self, node: dict = None, prefix=None) -> Iterable[List[str]]:
+    def walk_structure(self, node: dict = None, prefix=None) -> Iterable[list[str]]:
         if node is None:
             node = self.structure
         if prefix is None:
