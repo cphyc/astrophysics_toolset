@@ -1,7 +1,7 @@
 """Define useful functions for working with stars."""
 
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple
+from typing import Literal, Optional
 
 import joblib
 import numpy as np
@@ -64,7 +64,7 @@ def _compute_table(
     metallicities: np.ndarray,
     bands: list,
     n_jobs=-1,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute the luminosity table for a given stellar population.
 
     Parameters
@@ -125,7 +125,7 @@ def add_luminosities(
     ds,
     imf: IMF_T = None,
     fsps_params: Optional[dict] = None,
-    bands: Optional[List] = None,
+    bands: Optional[list] = None,
     ptype: str = "star",
 ):
     if imf is None:
