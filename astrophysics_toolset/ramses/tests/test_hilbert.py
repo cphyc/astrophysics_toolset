@@ -10,7 +10,8 @@ def seed():
     np.random.seed(16091992)
 
 
-@pytest.mark.parametrize("bit_length", range(5, 40))
+# Note: test only up to 21 to prevent overflow of int64 [2*22 > 64]
+@pytest.mark.parametrize("bit_length", range(5, 21))
 def test_hilbert(seed, bit_length):
     N = 10
 
