@@ -234,13 +234,15 @@ e_densities = np.logspace(-7, 6, n_vals)
 
 
 def _create_transition_from_wavelength(
-    ds, atom: "pyneb.Atom", wavelength: float
+    ds, atom: "pyneb.Atom", wavelength: Optional[float]=None, lev_i:Optional[int]=None, lev_j:Optional[int]=None,
 ) -> list[tuple[str, str]]:
-    if int(wavelength) == wavelength:
+    if wavelength and int(wavelength) == wavelength:
         wavelength = int(wavelength)
     element = atom.elem
     ionization_level = atom.spec
     name_mapping = {
+        "H": "helium",
+        "He": "helium",
         "Ca": "calcium",
         "C": "carbon",
         "Mg": "magnesium",
@@ -269,15 +271,28 @@ def _create_transition_from_wavelength(
         10: "X",
     }[ionization_level]
 
-    solutions = np.argwhere(np.abs(wavelength - atom.lineList) < 2).flatten()
+    if lev_i is not None and lev_j is not None:
+        wavelength = atom.getWave(lev_i=lev_i, lev_j=lev_j)
+        lineList = [wavelength]
+    elif wavelength:
+        if isinstance(atom, pyneb.RecAtom):
+            lineList = np.array([wavelength])  # assume the user did a good job
+        else:
+            lineList = atom.lineList
+            
+    else:
+        raise RuntimeError("Need to provide wavelength or levels")
+    
+    solutions = np.argwhere(np.abs(wavelength - lineList) < 2).flatten()
+    
 
-    if len(solutions) == 0 or len(solutions) > 2:
+    if len(solutions) == 0 or len(solutions) > 3:
         raise ValueError(f"No line transition found for wavelength {wavelength} Å.")
     elif len(solutions) == 2:
-        decimals = -floor(np.log10(np.min(np.abs(np.diff(atom.lineList[solutions])))))
+        decimals = -floor(np.log10(np.min(np.abs(np.diff(lineList[solutions])))))
         lines = [
             _create_transition_from_wavelength(
-                ds, atom, np.round(atom.lineList[ind], decimals=decimals)
+                ds, atom, np.round(lineList[ind], decimals=decimals)
             )[0]
             for ind in solutions
         ]
@@ -353,10 +368,11 @@ def _create_transition_from_wavelength(
         else:
             eps = data.apply_units(
                 emissivity(
-                    (T.flatten(), ne.flatten()),
+                    (np.log10(T.flatten()), np.log10(ne.flatten())),
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
+            eps[np.isnan(eps)] = 0
         return ne * nX * eps
 
     field_name = (
@@ -378,7 +394,7 @@ def _create_transition_from_wavelength(
 def _create_hydrogen_emission(
     ds, atom: "pyneb.Atom", *, lev_i: int, lev_j: int, name: str, name_latex: str
 ) -> tuple[str, str]:
-    HMass = nuclide_data.getStandardAtomicWeight("H") * u.mp
+    HMass = nuclide_data.getStandardAtomicWeight(atom.elem) * u.mp
 
     em_grid = atom.getEmissivity(
         tem=temperatures, den=e_densities, lev_i=lev_i, lev_j=lev_j, product=True
@@ -390,7 +406,7 @@ def _create_hydrogen_emission(
         fill_value=0,
     )
 
-    def H_emissivity(field, data):
+    def _emissivity(field, data):
         T = data["gas", "temperature"].to("K")
         ne = data["gas", "electron_number_density"].to("cm**-3")
         Z = data["gas", "metallicity"]
@@ -407,16 +423,17 @@ def _create_hydrogen_emission(
         else:
             eps = data.apply_units(
                 emissivity(
-                    (T.flatten(), ne.flatten()),
+                    (np.log10(T.flatten()), np.log10(ne.flatten())),
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
+            eps[np.isnan(eps)] = 0
         return ne * nH * eps
 
     field_name = ("gas", f"{name}_emissivity")
     ds.add_field(
         field_name,
-        function=H_emissivity,
+        function=_emissivity,
         units="erg/s/cm**3",
         sampling_type="cell",
         display_name=f"{name_latex} Emissivity",
@@ -454,7 +471,10 @@ def create_emission_line(
         )
 
     if element not in ("Halpha", "Hbeta", "Hgamma"):
-        atom = pyneb.Atom(element, ionization_level)
+        if element in ("H", "He"):
+            atom = pyneb.RecAtom(element, ionization_level)
+        else:
+            atom = pyneb.Atom(element, ionization_level)
         return _create_transition_from_wavelength(ds, atom, wavelength)
     elif element == "Halpha":
         atom = pyneb.RecAtom("H", 1)
