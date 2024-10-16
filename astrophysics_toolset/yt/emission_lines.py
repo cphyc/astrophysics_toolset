@@ -233,6 +233,22 @@ temperatures = np.logspace(1, 9, n_vals)
 e_densities = np.logspace(-7, 6, n_vals)
 
 
+def format_wavelength(wavelength: float) -> tuple[str, str]:
+    "Formats a wavelength in Å into mm/µm/Å"
+    if wavelength > 1e8:
+        wl = f"{wavelength/1e7:.0f}"
+        wlu = "mm"
+    elif wavelength > 1e5:
+        wl = f"{wavelength/1e4:.0f}"
+        wlu = "µm"
+    else:
+        wl = f"{wavelength:.0f}"
+        wlu = "Å"
+
+    return wl, wlu
+
+
+
 def _create_transition_from_wavelength(
     ds, atom: "pyneb.Atom", wavelength: float
 ) -> list[tuple[str, str]]:
@@ -294,18 +310,21 @@ def _create_transition_from_wavelength(
             if l1 == l2:
                 continue
 
+            wl, wu = format_wavelength(wavelength)
+
             # Add doublet emissivity
             field_name: tuple[str, str] = (
                 "gas",
-                f"{element}{ionization_level}_{wavelength}A_doublet_emissivity",
+                f"{element}{ionization_level}_{wl}{wu}_doublet_emissivity",
             )
+
             ds.add_field(
                 field_name,
                 function=partial(line_sum, l1=l1, l2=l2),
                 units="erg/s/cm**3",
                 sampling_type="cell",
                 display_name=(
-                    rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Emissivity"
+                    rf"[{element}{roman}]$\lambda\lambda{wl}${wu} Emissivity"
                 ),
             )
             all_lines.append(field_name)
@@ -313,7 +332,7 @@ def _create_transition_from_wavelength(
             # Add line ratio
             field_name: tuple[str, str] = (
                 "gas",
-                f"{element}{ionization_level}_{wavelength}A_doublet_ratio",
+                f"{element}{ionization_level}_{wl}{wu}_doublet_ratio",
             )
             ds.add_field(
                 field_name,
@@ -321,7 +340,7 @@ def _create_transition_from_wavelength(
                 units="",
                 sampling_type="cell",
                 display_name=(
-                    rf"[{element}{roman}]$\lambda\lambda{wavelength:.0f}Å$ Line Ratio"
+                    rf"[{element}{roman}]$\lambda\lambda{wl}${wu} Line Ratio"
                 ),
             )
             all_lines.append(field_name)
@@ -359,9 +378,10 @@ def _create_transition_from_wavelength(
             )
         return ne * nX * eps
 
+    wl, wu = format_wavelength(wavelength)
     field_name = (
         "gas",
-        f"{element}{ionization_level}_{wavelength}A_emissivity",
+        f"{element}{ionization_level}_{wl}{wu}_emissivity",
     )
 
     ds.add_field(
@@ -369,7 +389,7 @@ def _create_transition_from_wavelength(
         function=ion_emissivity,
         units="erg/s/cm**3",
         sampling_type="cell",
-        display_name=rf"[{element}{roman}]$\lambda{wavelength:.0f}Å$ Emissivity",
+        display_name=rf"[{element}{roman}]$\lambda{wl}${wu} Emissivity",
     )
 
     return [field_name]
