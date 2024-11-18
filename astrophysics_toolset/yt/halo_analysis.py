@@ -1,8 +1,12 @@
-from typing import Union
+from bisect import bisect
+from typing import Union, Literal
+from more_itertools import always_iterable
 
 import numpy as np
 import yt
 from unyt.array import unyt_array, unyt_quantity
+
+from .utils import conform_to_arr, conform_to_qty
 
 
 def shrinking_sphere(
@@ -35,15 +39,22 @@ def shrinking_sphere(
         The center and bulk velocity.
     """
 
-    if isinstance(radius, tuple):
-        radius = ds.quan(*radius).to("code_length")
-    if isinstance(center, tuple):
-        center = ds.arr(*center)
+    radius = conform_to_qty(ds, radius).to("code_length")
+    center = conform_to_arr(ds, center).to("code_length")
 
     sp0 = ds.sphere(center, radius)
-    pos = sp0[center_on, "particle_position"].to("code_length")
-    vel = sp0[center_on, "particle_velocity"].to("code_velocity")
-    m = sp0[center_on, "particle_mass"][:, None].value
+    pos = []
+    vel = []
+    m = []
+
+    for pt in always_iterable(center_on):
+        pos.append(sp0[pt, "particle_position"].to("code_length"))
+        vel.append(sp0[pt, "particle_velocity"].to("code_velocity"))
+        m.append(sp0[pt, "particle_mass"][:, None].value)
+
+    pos = ds.arr(np.concatenate(pos), pos[0].units)
+    vel = ds.arr(np.concatenate(vel), vel[0].units)
+    m = np.concatenate(m)
 
     center_0 = center.copy()
 
@@ -72,3 +83,110 @@ def shrinking_sphere(
     center_velocity = np.sum((vel * m), axis=0) / m.sum()
 
     return center, center_velocity
+
+
+def virial_quantities(
+    ds,
+    center,
+    radius=None,
+    rmax=None,
+    rho_def: Literal["critical", "matter"] = "critical",
+    overdensity: float = 200.0,
+    use_gas: bool = True,
+    use_particles: bool = True,
+    particle_types: tuple[str] = ("star", "DM"),
+) -> unyt_quantity:
+    """
+    Compute the virial radius of a halo.
+
+    Parameters
+    ----------
+    ds : yt.data_objects.static_output.Dataset
+        The dataset containing the halo.
+    center : tuple or unyt_array
+        The center of the halo.
+    radius : unyt_quantity, optional
+        The initial guess for the virial radius, by default None.
+    rmax : unyt_quantity, optional
+        The maximum radius to search for the virial radius, by default None.
+    rho_def : Literal["critical", "matter"], optional
+        The definition of the density, by default "critical".
+    overdensity : float, optional
+        The overdensity threshold for the virial radius, by default 200.0.
+    use_gas : bool, optional
+        Whether to include gas, by default True.
+    use_particles : bool, optional
+        Whether to include particles, by default True.
+    particle_types : tuple[str], optional
+        The particle types to include, by default ("star", "DM").
+
+    Returns
+    -------
+    unyt_quantity, unyt_quantity
+        The virial radius and virial mass
+
+    """
+    particle_types = list(always_iterable(particle_types))
+
+    if rmax is None:
+        rmax = ds.domain_width.max()
+    else:
+        rmax = conform_to_qty(ds, rmax).to("code_length")
+
+    if not use_gas and not use_particles:
+        raise ValueError(
+            "You need to specify gas or particles to compute virial quantities."
+        )
+    if use_particles and not particle_types:
+        raise ValueError(
+            "You need to specify particle types to compute virial quantities."
+        )
+    for pt in particle_types if use_particles else []:
+        if pt not in ds.particle_types:
+            raise ValueError(f"Particle type {pt} not found in dataset.")
+    if rho_def not in ("critical", "matter"):
+        raise ValueError("Invalid density definition. Use 'critical' or 'matter'.")
+
+    new_center, new_velocity = shrinking_sphere(
+        ds, center, radius, center_on=particle_types
+    )
+
+    sp = ds.sphere(new_center, rmax)
+    sp.set_field_parameter("bulk_velocity", new_velocity)
+    rr = []
+    mm = []
+
+    if use_gas:
+        rr.append(sp["index", "radius"].to("code_length"))
+        mm.append(sp["gas", "cell_mass"].to("Msun"))
+
+    if use_particles:
+        for pt in particle_types:
+            rr.append(sp[pt, "particle_radius"].to("code_length"))
+            mm.append(sp[pt, "particle_mass"].to("Msun"))
+
+    rr = ds.arr(np.concatenate(rr), rr[0].units)
+    mm = ds.arr(np.concatenate(mm), mm[0].units)
+
+    order = np.argsort(rr)
+    rr = rr[order]
+    mm = mm[order].cumsum()
+    
+    rho = mm / (4 / 3 * np.pi * rr**3)
+
+    # Compute
+    rhoc = ds.cosmology.critical_density(ds.current_redshift)
+    rhom = rhoc * ds.cosmology.omega_matter * (1 + ds.current_redshift) ** 3
+
+    if rho_def == "critical":
+        rho_tgt = rhoc * overdensity
+    elif rho_def == "matter":
+        rho_tgt = rhom * overdensity
+    else:
+        raise ValueError("Invalid density definition. Use 'critical' or 'matter'.")
+    
+    ind = bisect(-rho, -rho_tgt.to(rho.units))
+    Rvir = rr[ind]
+    Mvir = mm[ind]
+
+    return new_center, Rvir.to("kpc"), Mvir.to("Msun")
