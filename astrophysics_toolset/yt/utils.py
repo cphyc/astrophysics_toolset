@@ -2,7 +2,7 @@ from unyt.array import  unyt_quantity, unyt_array
 def conform_to_qty(ds, value: tuple[float, str] | unyt_quantity) -> unyt_quantity:
     """
     Convert a float-like value to a unyt_quantity.
-    
+
     Parameters
     ----------
     ds : yt.data_objects.static_output.Dataset
@@ -24,7 +24,7 @@ def conform_to_qty(ds, value: tuple[float, str] | unyt_quantity) -> unyt_quantit
 def conform_to_arr(ds, value: tuple[float, str] | unyt_array) -> unyt_array:
     """
     Convert a float-like array to a unyt_array.
-    
+
     Parameters
     ----------
     ds : yt.data_objects.static_output.Dataset

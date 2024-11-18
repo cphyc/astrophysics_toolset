@@ -171,7 +171,7 @@ def virial_quantities(
     order = np.argsort(rr)
     rr = rr[order]
     mm = mm[order].cumsum()
-    
+
     rho = mm / (4 / 3 * np.pi * rr**3)
 
     # Compute
@@ -184,7 +184,7 @@ def virial_quantities(
         rho_tgt = rhom * overdensity
     else:
         raise ValueError("Invalid density definition. Use 'critical' or 'matter'.")
-    
+
     ind = bisect(-rho, -rho_tgt.to(rho.units))
     Rvir = rr[ind]
     Mvir = mm[ind]
