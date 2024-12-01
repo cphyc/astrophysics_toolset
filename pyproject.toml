@@ -56,7 +56,7 @@ test = [
     "pytest>=6.2.5,<8.4.0",
     # Ping to 4.3.1 to avoid changeset in https://github.com/yt-project/yt/pull/4878
     # This is required for testing hilbert.pyx functions
-    "yt~=4.3.1",
+    "yt>=4.3.1,<4.5.0",
 ]
 
 [project.scripts]
