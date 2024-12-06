@@ -48,9 +48,18 @@ def shrinking_sphere(
     m = []
 
     for pt in always_iterable(center_on):
-        pos.append(sp0[pt, "particle_position"].to("code_length"))
-        vel.append(sp0[pt, "particle_velocity"].to("code_velocity"))
-        m.append(sp0[pt, "particle_mass"][:, None].value)
+        if pt == "gas":
+            pos.append(np.stack(
+                [sp0[pt, k].to("code_length") for k in ("x", "y", "z")], axis=-1
+            ))
+            vel.append(np.stack(
+                [sp0[pt, f"velocity_{k}"].to("code_velocity") for k in ("x", "y", "z")], axis=-1
+            ))
+            m.append(sp0[pt, "cell_mass"][:, None].value)
+        else:
+            pos.append(sp0[pt, "particle_position"].to("code_length"))
+            vel.append(sp0[pt, "particle_velocity"].to("code_velocity"))
+            m.append(sp0[pt, "particle_mass"][:, None].value)
 
     pos = ds.arr(np.concatenate(pos), pos[0].units)
     vel = ds.arr(np.concatenate(vel), vel[0].units)
