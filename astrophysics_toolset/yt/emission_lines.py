@@ -367,12 +367,15 @@ def _create_transition_from_wavelength(
             / xMass
         )
 
+        logT = np.log10(T)
+        logne = np.log10(ne)
+
         if isinstance(data, FieldDetector):
             eps = data.apply_units(1, "erg/s*cm**3")
         else:
             eps = data.apply_units(
                 emissivity(
-                    (T.flatten(), ne.flatten()),
+                    (logT.flatten(), logne.flatten()),
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
@@ -422,12 +425,15 @@ def _create_hydrogen_emission(
             / HMass
         )
 
+        logT = np.log10(T)
+        logne = np.log10(ne)
+
         if isinstance(data, FieldDetector):
             eps = data.apply_units(1, "erg/s*cm**3")
         else:
             eps = data.apply_units(
                 emissivity(
-                    (T.flatten(), ne.flatten()),
+                    (logT.flatten(), logne.flatten()),
                 ).reshape(T.shape),
                 "erg/s*cm**3",
             )
