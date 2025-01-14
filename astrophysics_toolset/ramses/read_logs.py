@@ -55,6 +55,8 @@ def read_log_file(log_file: str):
     fine_step_stats: dict[tuple[int, int], dict[str, float]] = {}
     coarse_step_stats: dict[int, dict[str, float]] = defaultdict(dict)
 
+    fine_step_data = None
+
     with open(log_file) as f:
         for line in f:
             line = line.strip()
@@ -69,13 +71,16 @@ def read_log_file(log_file: str):
                     k: int(v) for k, v in data.items()
                 }
             elif match := FINE_RE.match(line):
-                data = match.groupdict()
-                current_fine_timestep = int(data["fine_step"])
+                fine_step_data = match.groupdict()
+                current_fine_timestep = int(fine_step_data["fine_step"])
                 fine_step_stats[current_coarse_timestep, current_fine_timestep] = {
-                    k: float(v) for k, v in data.items()
+                    k: float(v) for k, v in fine_step_data.items()
                 }
             elif match := TIME_RE.match(line):
                 data = match.groupdict()
+                if fine_step_data is not None:
+                    data["aexp"] = fine_step_data["a"]
+
                 current_coarse_timestep += 1
                 coarse_step_stats[current_coarse_timestep].update(
                     {k: float(v) for k, v in data.items()}
@@ -158,6 +163,22 @@ def plot_time_per_timestep(coarse_step_stats: pd.DataFrame):
 
         fig.savefig("time_per_timestep.pdf")
 
+def plot_aexp_vs_time(coarse_step_stats: pd.DataFrame):
+    logger.info("Plotting aexp vs time")
+
+    with plt.style.context("paper-onecolumn"), plt.style.context(
+        {"axes.spines.right": True}
+    ):
+
+        fig, ax = plt.subplots(constrained_layout=True)
+        ax.plot(
+            coarse_step_stats["time_elapsed"].cumsum() / 3600 / 24,
+            coarse_step_stats["a"],
+        )
+        ax.set_xlabel("Time [days]")
+        ax.set_ylabel("$a_\mathrm{exp}$")
+
+        fig.savefig("aexp_vs_time.pdf")
 
 def main(argv: list[str] | None = None):
     import argparse
@@ -184,7 +205,7 @@ def main(argv: list[str] | None = None):
 
     logger.setLevel("DEBUG")
 
-    level_stats, find_step_stats, coarse_step_stats = (
+    level_stats, fine_step_stats, coarse_step_stats = (
         pd.concat(_)
         for _ in zip(*(read_log_file(log_file) for log_file in sorted(args.log_file)))
     )
@@ -194,6 +215,9 @@ def main(argv: list[str] | None = None):
 
     if args.plot_time_per_timestep:
         plot_time_per_timestep(coarse_step_stats)
+
+    if args.plot_aexp_vs_time:
+        plot_aexp_vs_time(coarse_step_stats)
 
 
 if __name__ == "__main__":
