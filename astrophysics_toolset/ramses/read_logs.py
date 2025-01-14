@@ -215,6 +215,11 @@ def main(argv: list[str] | None = None):
         action="store_true",
         help="Plot the time per timestep",
     )
+    parser.add_argument(
+        "--plot-aexp-vs-time",
+        action="store_true",
+        help="Plot the expansion factor vs time",
+    )
 
     args = parser.parse_args(argv)
 
