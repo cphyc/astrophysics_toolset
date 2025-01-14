@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit
 
 from .decorators import spatial
-from .types import FloatArrayType
+from .custom_types import FloatArrayType
 
 
 @spatial

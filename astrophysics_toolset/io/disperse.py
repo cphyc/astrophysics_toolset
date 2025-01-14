@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from ..utilities.decorators import read_files
-from ..utilities.types import FloatArrayType, PathType
+from ..utilities.custom_types import FloatArrayType, PathType
 from .disperse_reader import DisperseReader
 
 

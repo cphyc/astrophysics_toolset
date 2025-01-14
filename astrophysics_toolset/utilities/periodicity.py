@@ -3,7 +3,7 @@
 import numpy as np
 
 from .decorators import spatial
-from .types import FloatArrayType
+from .custom_types import FloatArrayType
 
 
 @spatial

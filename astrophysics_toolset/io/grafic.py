@@ -4,7 +4,7 @@ import numpy as np
 from scipy.io import FortranFile as FF  # noqa: N817
 
 from ..utilities.decorators import read_files
-from ..utilities.types import PathType
+from ..utilities.custom_types import PathType
 from .common import IOResult
 
 

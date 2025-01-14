@@ -49,12 +49,20 @@ def shrinking_sphere(
 
     for pt in always_iterable(center_on):
         if pt == "gas":
-            pos.append(np.stack(
-                [sp0[pt, k].to("code_length") for k in ("x", "y", "z")], axis=-1
-            ))
-            vel.append(np.stack(
-                [sp0[pt, f"velocity_{k}"].to("code_velocity") for k in ("x", "y", "z")], axis=-1
-            ))
+            pos.append(
+                np.stack(
+                    [sp0[pt, k].to("code_length") for k in ("x", "y", "z")], axis=-1
+                )
+            )
+            vel.append(
+                np.stack(
+                    [
+                        sp0[pt, f"velocity_{k}"].to("code_velocity")
+                        for k in ("x", "y", "z")
+                    ],
+                    axis=-1,
+                )
+            )
             m.append(sp0[pt, "cell_mass"][:, None].value)
         else:
             pos.append(sp0[pt, "particle_position"].to("code_length"))
@@ -69,11 +77,9 @@ def shrinking_sphere(
 
     while len(pos) > 1000:
         yt.mylog.info(
-            "Shrinking sphere radius: dx: %s kpc/h\tnpart: %8d"
-            % (
-                (center - center_0).to("kpc/h").value,
-                len(pos),
-            )
+            "Shrinking sphere radius: dx: %s kpc/h\tnpart: %8d",
+            (center - center_0).to("kpc/h").value,
+            len(pos),
         )
 
         r = np.linalg.norm(pos - center, axis=1)
