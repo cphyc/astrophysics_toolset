@@ -176,7 +176,7 @@ def plot_aexp_vs_time(coarse_step_stats: pd.DataFrame):
             coarse_step_stats["a"],
         )
         ax.set_xlabel("Time [days]")
-        ax.set_ylabel("$a_\mathrm{exp}$")
+        ax.set_ylabel(r"$a_\mathrm{exp}$")
 
         fig.savefig("aexp_vs_time.pdf")
 
