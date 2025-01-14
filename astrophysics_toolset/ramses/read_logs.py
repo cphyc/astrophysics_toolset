@@ -126,6 +126,9 @@ def read_log_file(log_file: str):
     else:
         coarse_step_stats_df.index.names = ["nstep_coarse"]
 
+    for df in (level_stats_df, fine_step_stats_df, coarse_step_stats_df):
+        df["log_file"] = log_file
+
     return level_stats_df, fine_step_stats_df, coarse_step_stats_df
 
 
@@ -161,10 +164,10 @@ def plot_level_stats(level_stats: pd.DataFrame):
 
 def plot_time_per_timestep(coarse_step_stats: pd.DataFrame):
     logger.info("Plotting time per timestep")
-    with plt.style.context("paper-onecolumn"), plt.style.context(
-        {"axes.spines.right": True}
+    with (
+        plt.style.context("paper-onecolumn"),
+        plt.style.context({"axes.spines.right": True}),
     ):
-
         fig, ax = plt.subplots(constrained_layout=True)
         ax.plot(
             coarse_step_stats.index,
@@ -189,21 +192,32 @@ def plot_time_per_timestep(coarse_step_stats: pd.DataFrame):
 
         fig.savefig("time_per_timestep.pdf")
 
+
 def plot_aexp_vs_time(coarse_step_stats: pd.DataFrame):
     logger.info("Plotting aexp vs time")
 
-    with plt.style.context("paper-onecolumn"), plt.style.context(
-        {"axes.spines.right": True}
+    # Index by the log file
+    data = coarse_step_stats.set_index("log_file")
+
+    # Sort by increasing aexp
+    data["first_aexp"] = data.groupby("log_file").min()["aexp"]
+
+    data = data.sort_values("first_aexp")
+
+    with (
+        plt.style.context("paper-onecolumn"),
+        plt.style.context({"axes.spines.right": True}),
     ):
         fig, ax = plt.subplots(constrained_layout=True)
         ax.plot(
-            coarse_step_stats["time_elapsed"].cumsum() / 3600 / 24,
-            coarse_step_stats["aexp"],
+            data["time_elapsed"].cumsum() / 3600 / 24,
+            data["aexp"],
         )
         ax.set_xlabel("Time [days]")
         ax.set_ylabel(r"$a_\mathrm{exp}$")
 
         fig.savefig("aexp_vs_time.pdf")
+
 
 def main(argv: list[str] | None = None):
     import argparse
