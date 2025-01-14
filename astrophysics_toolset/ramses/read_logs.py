@@ -5,7 +5,22 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # from astrophysics_toolset.utilities.logging import logger
-from yt import mylog as logger
+try:
+    from yt import mylog as logger
+except ImportError:
+    import logging
+
+    logger = logging.getLogger(__name__)
+    # Set some basic formatting
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    # Create a console handler
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    logger.setLevel("INFO")
 
 # Match 'Restarting at t=  -5.29607640528895       nstep_coarse=       46763'
 RESTART_RE = re.compile(
