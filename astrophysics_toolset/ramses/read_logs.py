@@ -63,8 +63,8 @@ SED_RE = re.compile(
 
 def read_log_file(log_file: str):
     logger.info("Reading log file %s", log_file)
-    current_coarse_timestep: int
-    current_fine_timestep: int
+    current_coarse_timestep: int = 0
+    current_fine_timestep: int = 0
 
     level_stats: dict[tuple[int, int], dict[str, int]] = {}
     fine_step_stats: dict[tuple[int, int], dict[str, float]] = {}
@@ -82,6 +82,8 @@ def read_log_file(log_file: str):
             elif match := LEVEL_RE.match(line):
                 data = match.groupdict()
                 level = int(data.pop("level"))
+                if current_coarse_timestep is None:
+                    continue
                 level_stats[current_coarse_timestep, level] = {
                     k: int(v) for k, v in data.items()
                 }
@@ -107,13 +109,22 @@ def read_log_file(log_file: str):
                 )
 
     level_stats_df = pd.DataFrame(level_stats).T
-    level_stats_df.index.names = ["nstep_coarse", "level"]
+    if len(level_stats) == 0:
+        logger.warning("No level data found in %s", log_file)
+    else:
+        level_stats_df.index.names = ["nstep_coarse", "level"]
 
     fine_step_stats_df = pd.DataFrame(fine_step_stats).T
-    fine_step_stats_df.index.names = ["nstep_coarse", "fine_step"]
+    if len(fine_step_stats) == 0:
+        logger.warning("No fine step data found in %s", log_file)
+    else:
+        fine_step_stats_df.index.names = ["nstep_coarse", "fine_step"]
 
     coarse_step_stats_df = pd.DataFrame(coarse_step_stats).T
-    coarse_step_stats_df.index.names = ["nstep_coarse"]
+    if len(coarse_step_stats) == 0:
+        logger.warning("No coarse step data found in %s", log_file)
+    else:
+        coarse_step_stats_df.index.names = ["nstep_coarse"]
 
     return level_stats_df, fine_step_stats_df, coarse_step_stats_df
 
@@ -184,11 +195,10 @@ def plot_aexp_vs_time(coarse_step_stats: pd.DataFrame):
     with plt.style.context("paper-onecolumn"), plt.style.context(
         {"axes.spines.right": True}
     ):
-
         fig, ax = plt.subplots(constrained_layout=True)
         ax.plot(
             coarse_step_stats["time_elapsed"].cumsum() / 3600 / 24,
-            coarse_step_stats["a"],
+            coarse_step_stats["aexp"],
         )
         ax.set_xlabel("Time [days]")
         ax.set_ylabel(r"$a_\mathrm{exp}$")
