@@ -794,14 +794,14 @@ def main():  # noqa: C901
     print(" old structure ".center(120, "="))
     for numbl in data[1]["numbl"]:
         for c in numbl:
-            print("%7d" % c, end="")
+            print(f"{c:7d}", end="")
         print(f"| {numbl.sum()}")
 
     print(" new structure ".center(120, "="))
 
     for numbl in new_data[1]["numbl"]:
         for c in numbl:
-            print("%7d" % c, end="")
+            print(f"{c:7d}", end="")
         print(f"| {numbl.sum()}")
 
     octree.check_tree(999)
@@ -1101,7 +1101,7 @@ def main():  # noqa: C901
             line = lines.pop(0)
             while not line.strip().startswith("DOMAIN   ind_min"):
                 if "ncpu" in line:
-                    line = "ncpu        = %10d\n" % new_ncpu
+                    line = f"ncpu        = {new_ncpu:10d}\n"
                 fout.write(line)
                 line = lines.pop(0)
 
@@ -1134,7 +1134,7 @@ def test_using_yt(args, CONFIG):
     yt.funcs.mylog.setLevel(40)
     # Test reading with yt as a weak test
     ds_original = yt.load(args.input)
-    ds_new = yt.load(os.path.join(args.output_dir, "info_%05d.txt" % CONFIG["iout"]))
+    ds_new = yt.load(os.path.join(args.output_dir, f"info_{CONFIG['iout']:05d}.txt"))
 
     images = []
     os.makedirs("tmp/frames/", exist_ok=True)

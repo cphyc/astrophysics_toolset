@@ -4,7 +4,7 @@ from yt.data_objects.selection_objects.data_selection_objects import (
 )
 from yt.data_objects.static_output import Dataset
 
-from ..utilities.logging import logger
+from .log import logger
 
 
 def create_sph_fields(
