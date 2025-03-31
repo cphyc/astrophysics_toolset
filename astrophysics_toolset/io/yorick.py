@@ -15,8 +15,8 @@ INFO_RE = re.compile(
 
 class PDBReader:
     _known_types = {
-        **{k: int for k in ("char", "short", "int", "long")},
-        **{k: float for k in ("float", "double")},
+        **dict.fromkeys(("char", "short", "int", "long"), int),
+        **dict.fromkeys(("float", "double"), float),
         "complex": complex,
         "string": str,
         "pointer": "yorick_pointer",
