@@ -104,12 +104,22 @@ def find_clumps(
     # Query data from the data source
     data_source.get_data(fields)
 
+
+    qty = data_source[field]
+    if hasattr(min_value, "units"):
+        min_value = min_value.to(qty.units).d
+    qty = qty.d
+
+    # Only keep those cells above our threshold
+    mask_qty = qty >= min_value
+    qty = qty[mask_qty]
+
     # Get cell positions
     xc = np.stack(
-        [data_source["gas", axis].to("unitary").value for axis in "xyz"],
+        [data_source["gas", axis].to("unitary").value[mask_qty] for axis in "xyz"],
         axis=-1,
     )
-    dx = data_source["gas", "dx"].to("unitary").value
+    dx = data_source["gas", "dx"].to("unitary").value[mask_qty]
 
     yt.mylog.info("Building KDTree")
     tree = KDTree(xc, boxsize=data_source.ds.domain_width.to("unitary").value[0])
@@ -119,17 +129,12 @@ def find_clumps(
     dists, inds = tree.query(xc, 24, p=1, workers=-1)
 
     yt.mylog.info("Discarding non-connected cells")
-    mask = dists <= (1.5 * dx[..., None])
-
-    qty = data_source[field]
-    if hasattr(min_value, "units"):
-        min_value = min_value.to(qty.units).d
-    qty = qty.d
+    mask = dists <= (1.5 * dx[:, None])
 
     yt.mylog.info("Building graph")
     graph = nx.Graph()
     graph.add_nodes_from(
-        (i, {"value": qty}) for i, qty in enumerate(data_source[field].value)
+        (i, {"value": q}) for i, q in enumerate(qty)
     )
     graph.add_edges_from(
         tqdm(
