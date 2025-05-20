@@ -143,9 +143,11 @@ def find_clumps(
         )
     )
 
+    ind2allind = np.arange(len(mask_qty))[mask_qty]
+
     yt.mylog.info("Finding connected components")
     components = [
-        (threshold, list(inds))
+        (threshold, ind2allind[inds])
         for threshold, inds in watershed_split(
             graph, value_attr="value", min_value=min_value
         )
