@@ -57,7 +57,7 @@ def watershed_split(G: nx.Graph, value_attr="density", min_value=0):
                     stack.append((neighbor, neighbor_value))
 
         if region:
-            regions.append((threshold, region))
+            regions.append((threshold, list(region)))
 
     return regions
 
@@ -147,11 +147,11 @@ def find_clumps(
 
     yt.mylog.info("Finding connected components")
     components = [
-        (threshold, ind2allind[inds])
-        for threshold, inds in watershed_split(
+        (threshold, ind2allind[ids])
+        for threshold, ids in watershed_split(
             graph, value_attr="value", min_value=min_value
         )
-        if all(cb(data_source, inds) for cb in filter_callbacks)
+        if all(cb(data_source, ind2allind[ids]) for cb in filter_callbacks)
     ]
 
     return [
