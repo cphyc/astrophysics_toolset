@@ -131,7 +131,11 @@ def find_clumps(
 
     yt.mylog.info("Finding neighbours")
     # Use Manhattan distance since we only want ±xyz
-    dists, inds = tree.query(xc, 24, p=1, workers=-1)
+    dists, inds = tree.query(xc, 4*6+1, p=1, workers=-1)
+
+    # Remove self
+    inds = inds[:, 1:]
+    dists = dists[:, 1:]
 
     yt.mylog.info("Discarding non-connected cells")
     mask = dists <= (1.5 * dx[:, None])
