@@ -217,6 +217,70 @@ def aspect_ratio(data, inds):
     costheta = np.abs(np.einsum("ij,j->i", eigvecs, ur))
 
     return np.sqrt(eigvals) * xyz.units, costheta
+
+def weighted_var(values, weights, *args, **kwargs):
+    """
+    Return the weighted variance.
+
+    Extra parameters are passed to numpy.average.
+    """
+    average = np.average(values, *args, weights=weights, **kwargs, keepdims=True)
+    variance = np.average((values-average)**2, *args, weights=weights, **kwargs)
+
+    return variance
+
+def cloud_turbulence(data_source):
+    data_source.get_data([
+        ("gas", "cell_mass"),
+        ("gas", "dx"),
+        *(("gas", f"velocity_{axis}") for axis in "xyz")
+    ])
+
+    # Get grid data
+    all_xyz = np.stack([
+        data_source["gas", axis] for axis in "xyz"
+    ], axis=-1).to("kpc")
+    all_v = np.stack([
+        data_source["gas", f"velocity_{axis}"] for axis in "xyz"
+    ], axis=-1).to("km/s")
+    all_m = data_source["gas", "cell_mass"].to("Msun")
+    all_dx = data_source["gas", "dx"].to("kpc")
+
+    # Find neighbours of clump cells
+    tree = KDTree(all_xyz)
+
+    def cloud_turbulence(data, inds):
+        if data is not data_source:
+            raise RuntimeError("Running on a different data source")
+
+        v_loc = all_v[inds]
+        m_loc = all_m[inds]
+        xyz_loc = all_xyz[inds]
+        dx_loc = all_dx[inds]
+
+        # 1-norm: Manhattan distance
+        neigh_dist, neigh_inds = tree.query(xyz_loc, k=4*6+1, workers=-1, p=1)
+
+        # Compute average velocity within cloud
+        vbulk_cloud = np.average(v_loc, axis=0, weights=m_loc)
+
+        # Get neighbour velocity
+        mask_neigh = neigh_dist <= dx_loc[:, None] * 1.5
+        v_neigh = all_v[neigh_inds] - vbulk_cloud
+        # Note: we weight with 0 cells that are further than 1.5 dx
+        mneigh = all_m[neigh_inds] * mask_neigh
+
+        # Compute local velocity dispersion
+        v2_loc = sum(
+            weighted_var(v_neigh[..., i], mneigh, axis=1)
+            for i in range(3)
+        )
+        sigma2 = np.average(v2_loc, weights=m_loc)
+
+        return np.sqrt(sigma2)
+
+    return cloud_turbulence
+
 def average_temperature(data, inds):
     return np.average(
         data["gas", "temperature"][inds],
