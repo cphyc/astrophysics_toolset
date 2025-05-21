@@ -192,7 +192,15 @@ def aspect_ratio(data, inds):
     ).to("kpc")
     m = data["gas", "cell_mass"][inds].to("Msun").value
 
-    r = np.linalg.norm(xyz, axis=-1)
+    # Compute alignment of eigvecs compared to mean position
+    clump_center = np.average(xyz, axis=0, weights=m)
+
+    # Radial vector
+    ur = clump_center / np.linalg.norm(clump_center)
+
+    # Distance w.r.t clump center
+    xyz -= clump_center
+    r = np.linalg.norm(xyz, axis=1)
 
     # Fit inertial ellipsoid
     # https://en.wikipedia.org/wiki/Inertia_tensor#Ellipsoid
@@ -206,12 +214,6 @@ def aspect_ratio(data, inds):
 
     # Now compute the eigenvalues / eigenvectors
     eigvals, eigvecs = np.linalg.eigh(Iij)
-
-    # Compute alignment of eigvecs compared to mean position
-    clump_center = np.average(xyz, axis=0, weights=m)
-
-    # Radial vector
-    ur = clump_center / np.linalg.norm(clump_center)
 
     # Project alignment of minor,median,major axes with respect to radial vector
     costheta = np.abs(np.einsum("ij,j->i", eigvecs, ur))
