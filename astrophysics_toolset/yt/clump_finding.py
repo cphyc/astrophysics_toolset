@@ -181,6 +181,42 @@ def total_mass(data, inds):
     return data["gas", "cell_mass"][inds].sum().to("Msun")
 
 
+def aspect_ratio(data, inds):
+    center = data.get_field_parameter("center")
+    if center is None or np.isclose(center, 0).all():
+        raise ValueError("No center defined for this data source")
+
+    xyz = np.stack(
+        [(data["gas", axis][inds] - center[i]) for i, axis in enumerate("xyz")],
+        axis=-1,
+    ).to("kpc")
+    m = data["gas", "cell_mass"][inds].to("Msun").value
+
+    r = np.linalg.norm(xyz, axis=-1)
+
+    # Fit inertial ellipsoid
+    # https://en.wikipedia.org/wiki/Inertia_tensor#Ellipsoid
+    Iij = np.zeros((3, 3), order="F")
+    for i in range(3):
+        Iij[i, i] = (m[:] * (r**2 - xyz[:, i]**2)).sum()
+        for j in range(i+1, 3):
+            Iij[j, i] = Iij[i, j] = (-m[:] * xyz[:, i] * xyz[:, j]).sum()
+
+    Iij /= m.sum()
+
+    # Now compute the eigenvalues / eigenvectors
+    eigvals, eigvecs = np.linalg.eigh(Iij)
+
+    # Compute alignment of eigvecs compared to mean position
+    clump_center = np.average(xyz, axis=0, weights=m)
+
+    # Radial vector
+    ur = clump_center / np.linalg.norm(clump_center)
+
+    # Project alignment of minor,median,major axes with respect to radial vector
+    costheta = np.abs(np.einsum("ij,j->i", eigvecs, ur))
+
+    return np.sqrt(eigvals) * xyz.units, costheta
 def average_temperature(data, inds):
     return np.average(
         data["gas", "temperature"][inds],
