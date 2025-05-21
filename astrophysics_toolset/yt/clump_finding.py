@@ -110,6 +110,11 @@ def find_clumps(
         min_value = min_value.to(qty.units).d
     qty = qty.d
 
+    # If the minimum value is negative, compare against
+    # -qty (small trick to avoid switching < for >)
+    if min_value < 0:
+        qty = -qty
+
     # Only keep those cells above our threshold
     mask_qty = qty >= min_value
     qty = qty[mask_qty]
