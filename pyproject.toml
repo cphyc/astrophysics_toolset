@@ -65,6 +65,7 @@ ramses_change_ncpu = "astrophysics_toolset.ramses.ramses_change_ncpu:main"
 yorick2hdf = "astrophysics_toolset.io.yorick:main"
 ramses_gather_lightcone = "astrophysics_toolset.ramses.lightcone:main"
 read_logs = "astrophysics_toolset.ramses.read_logs:main"
+extract_particles = "astrophysics_toolset.yt.extract_particles:main"
 
 [tool.setuptools]
 include-package-data = true
