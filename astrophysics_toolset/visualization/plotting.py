@@ -9,7 +9,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
-from matplotlib.mathtext import MathTextWarning
 from matplotlib.offsetbox import AnchoredOffsetbox
 
 
@@ -145,14 +144,10 @@ def fix_glyph_errors(ax=None):
         logger = logging.getLogger("matplotlib.mathtext")
         original_level = logger.getEffectiveLevel()
         logger.setLevel(logging.ERROR)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=MathTextWarning)
-            fig.canvas.draw()
+        fig.canvas.draw()
         logger.setLevel(original_level)
     else:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=MathTextWarning)
-            fig.canvas.draw()
+        fig.canvas.draw()
     # Remove '\mathdefault' from all minor tick labels
     labels = [
         label.get_text().replace(r"\mathdefault", "")
