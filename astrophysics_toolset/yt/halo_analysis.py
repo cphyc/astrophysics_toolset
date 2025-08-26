@@ -78,7 +78,7 @@ def shrinking_sphere(
     while len(pos) > 1000:
         yt.mylog.info(
             "Shrinking sphere radius: dx: %s kpc/h\tnpart: %8d",
-            (center - center_0).to("kpc/h").value,
+            list((center - center_0).to("kpc/h").value),
             len(pos),
         )
 
