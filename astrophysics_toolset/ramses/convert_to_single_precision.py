@@ -4,7 +4,6 @@ import shutil
 import numpy as np
 import yt
 from yt.config import ytcfg
-from yt.utilities.parallel_tools.parallel_analysis_interface import communication_system as comm
 
 from astrophysics_toolset.ramses._convert_to_single_precision import convert_grav, convert_hydro, convert_part
 
@@ -40,8 +39,9 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     nvar = len(hydro_fields)
     for hydro_file in yt.parallel_objects(hydro_files):
         output_file = output_folder / hydro_file.name
-        convert_hydro(str(hydro_file), str(output_file), verbose=verbose, nvar_manual=nvar)
-        all_files.remove(hydro_file)
+        if not output_file.exists():
+            convert_hydro(str(hydro_file), str(output_file), verbose=verbose, nvar_manual=nvar)
+    all_files.difference_update(hydro_files)
 
     # Convert grav files
     grav_files = sorted(input_folder.glob("grav_*.out*"))
@@ -52,8 +52,9 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     nvar = len(grav_fields)
     for grav_file in yt.parallel_objects(grav_files):
         output_file = output_folder / grav_file.name
-        convert_grav(str(grav_file), str(output_file), verbose=verbose, nvar_manual=nvar)
-        all_files.remove(grav_file)
+        if not output_file.exists():
+            convert_grav(str(grav_file), str(output_file), verbose=verbose, nvar_manual=nvar)
+    all_files.difference_update(grav_files)
 
     # Convert part files
     part_files = sorted(input_folder.glob("part_*.out*"))
@@ -69,15 +70,16 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     ]
     for part_file in yt.parallel_objects(part_files):
         output_file = output_folder / part_file.name
-        convert_part(str(part_file), str(output_file), include_tracers, input_types, output_types, verbose=verbose)
-        all_files.remove(part_file)
+        if not output_file.exists():
+            convert_part(str(part_file), str(output_file), include_tracers, input_types, output_types, verbose=verbose)
+    all_files.difference_update(part_files)
 
-    # Due to parallel processing, the local process hasn't seen all files, so let's do a MPI gather here
-    all_files = sorted(comm.communicators[-1].comm.allreduce(set(all_files), op=lambda a, b: a.intersection(b)))
-
-    # Hard link remaining files
+    # Copy remaining files
     for remaining_file in yt.parallel_objects(all_files):
         tgt = output_folder / remaining_file.name
+
+        if tgt.exists():
+            raise RuntimeError(f"{tgt} already exists! Aborting")
         if verbose:
             print(f" Copying file: {remaining_file} to {tgt}")
         shutil.copy2(remaining_file, tgt)
@@ -133,11 +135,10 @@ def main(args=None):
 
     args = parser.parse_args(args)
 
-    convert(args.input, args.output, args.include_tracers, args.verbose)
-
-    if args.verify and yt.is_root():
-        # Verification logic to be implemented
+    if args.verify:
         verify(args.input, args.output)
+    else:
+        convert(args.input, args.output, args.include_tracers, args.verbose)
 
     return 0
 

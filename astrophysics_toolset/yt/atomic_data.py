@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pyneb as pn
 from scipy.interpolate import PchipInterpolator, RegularGridInterpolator, interp1d
+import yt
+
 
 # Constants
 c = 2.99792458e10  # speed of light cm/s
@@ -128,6 +130,7 @@ class Interpolator:
         """
         Calculate the emissivity for the given atom and levels.
         """
+        yt.mylog.debug("Calculating emissivity for %s %s→%s", self.atom.name, self.lev_u, self.lev_d)
         # Get the emissivity grid
         em_grid = self.atom.getEmissivity(
             tem=temperatures, den=e_densities, lev_i=self.lev_u, lev_j=self.lev_d
@@ -164,6 +167,7 @@ class HuaInterpolator(Interpolator):
         """
         Calculate the emissivity for the given atom and levels.
         """
+        yt.mylog.debug("Calculating emissivity for %s %s→%s", self.atom.name, self.lev_u, self.lev_d)
         em_grid = np.zeros((len(temperatures), len(e_densities)))
         for i, ne in enumerate(e_densities):
             em = self.atom.getEmissivity(

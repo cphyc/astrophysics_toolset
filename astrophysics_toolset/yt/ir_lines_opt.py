@@ -1,8 +1,11 @@
-from functools import wraps
 import numpy as np
 from . import atomic_data as ad
 from .atomic_data import c, h, k
 import yt
+from .emission_lines import nuclide_data
+import roman
+from collections import namedtuple
+
 
 def three_level(
     g,
@@ -542,55 +545,317 @@ def H_I_IR_red(T, n_ion, ne):
     return lum_12
 
 
-def create_emission_lines():
-    def wrap_long(func, nion_field):
-        @wraps(func)
-        def wrapped(_field, data):
-            return func(
-                data["gas", "temperature"].to("K").value,
-                data[nion_field].to("1/cm**3").value,
-                data["gas", "electron_number_density"].to("1/cm**3").value,
-                data["gas", "H_number_density"].to("1/cm**3").value,
-                data["gas", "HI_number_density"].to("1/cm**3").value,
-                data["gas", "He_number_density"].to("1/cm**3").value,
-                data["gas", "HeI_number_density"].to("1/cm**3").value,
-                data["gas", "HeII_number_density"].to("1/cm**3").value,
-                data["gas", "H2_number_density"].to("1/cm**3").value,
-                data.ds.current_redshift,
+def _create_element_number_density(ds, element_name, element_short):
+    # print(f"Creating {element_name=} ({element_short=}) number density field")
+    atomic_weight = nuclide_data.getStandardAtomicWeight(element_name)
+
+    def number_density(field, data):
+        rho = data["ramses", f"hydro_{element_name}_fraction"] * data["gas", "density"]
+        w = data.apply_units(atomic_weight, "amu")
+        return rho / w
+
+    nelem_field_name = ("gas", f"{element_short}_number_density")
+    ds.add_field(
+        nelem_field_name,
+        function=number_density,
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+    return nelem_field_name
+
+
+def _create_ion_number_density(ds, element_name, element_short, ion_level):
+    # print(f"Creating {element_name=} {ion_level=} ({element_short=}) ion number density field")
+    def number_density(field, data):
+        return (
+            data["gas", f"{element_short}_number_density"]
+            * data["ramses", f"hydro_{element_name}_{ion_level:02d}"]
+        )
+
+    iX = roman.toRoman(ion_level)
+    nion_field_name = ("gas", f"{element_short}_{iX}_number_density")
+    ds.add_field(
+        nion_field_name,
+        function=number_density,
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+    return nion_field_name
+
+
+IonDesc = namedtuple("IonDesc", ["nion", "ion_level"])
+
+
+def create_emission_lines(ds):
+    # Create hydrogen number density field
+    mH = ds.quan(nuclide_data.getStandardAtomicWeight("H"), "amu")
+    mHe = ds.quan(nuclide_data.getStandardAtomicWeight("He"), "amu")
+    mFe = ds.quan(nuclide_data.getStandardAtomicWeight("Fe"), "amu")
+
+    # Create H, He, Fe number density fields
+    ds.add_field(
+        ("gas", "H_number_density"),
+        function=lambda field, data: data["gas", "density"] * 0.76 / mH,
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+    ds.add_field(
+        ("gas", "He_number_density"),
+        function=lambda field, data: data["gas", "density"] * 0.24 / mHe,
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+    ds.add_field(
+        ("gas", "Fe_number_density"),
+        function=lambda field, data: data["gas", "density"]
+        * data["ramses", "Metallicity"]
+        / mFe,
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+
+    # Create missing H2 and He_01
+    ds.add_field(
+        ("ramses", "hydro_H2"),
+        function=lambda field, data: 1
+        - data["ramses", "hydro_H_01"]
+        - data["ramses", "hydro_H_02"],
+        units="1",
+        sampling_type="cell",
+    )
+    ds.add_field(
+        ("ramses", "hydro_He_01"),
+        function=lambda field, data: np.clip(
+            1 - data["ramses", "hydro_He_02"] - data["ramses", "hydro_He_03"],
+            0,
+            1,
+        ),
+        units="1",
+        sampling_type="cell",
+    )
+
+    # Create nH2 field
+    ds.add_field(
+        ("gas", "H2_number_density"),
+        function=lambda field, data: data["gas", "H_number_density"]
+        * np.clip(
+            1 - data["ramses", "hydro_H_01"] - data["ramses", "hydro_H_02"],
+            0,
+            1,
+        ),
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+
+    # Alias H_XX and He_XX fields
+    ds.field_info.alias(
+        ("ramses", "hydro_hydrogen_01"),
+        ("ramses", "hydro_H_01"),
+        units="1",
+    )
+    ds.field_info.alias(
+        ("ramses", "hydro_hydrogen_02"),
+        ("ramses", "hydro_H_02"),
+        units="1",
+    )
+    ds.field_info.alias(
+        ("ramses", "hydro_helium_01"),
+        ("ramses", "hydro_He_01"),
+        units="1",
+    )
+    ds.field_info.alias(
+        ("ramses", "hydro_helium_02"),
+        ("ramses", "hydro_He_02"),
+        units="1",
+    )
+    ds.field_info.alias(
+        ("ramses", "hydro_helium_03"),
+        ("ramses", "hydro_He_03"),
+        units="1",
+    )
+
+    element_list = (
+        ("hydrogen", "H"),
+        ("helium", "He"),
+        ("oxygen", "O"),
+        ("carbon", "C"),
+        ("nitrogen", "N"),
+        ("silicon", "Si"),
+        ("sulfur", "S"),
+        ("neon", "Ne"),
+        ("iron", "Fe"),
+    )
+
+    # Create other element number density fields + ion number density fields
+    ion_fields: list[IonDesc] = []
+    for element, element_short in element_list:
+        # Skip for H, He and Fe (already done)
+        if element not in ("hydrogen", "helium", "iron"):
+            _create_element_number_density(ds, element, element_short)
+
+        # Create ion number density fields
+        for i in range(1, 20):
+            ion_field = ("ramses", f"hydro_{element}_{i:02d}")
+            # print(f"\t\t{ion_field}")
+
+            if ion_field not in ds.field_info:
+                continue
+
+            nion_field_name = _create_ion_number_density(ds, element, element_short, i)
+
+            ion_fields.append(
+                IonDesc(
+                    nion=nion_field_name,
+                    ion_level=i,
+                )
             )
+
+    # Create electron number density field and mean molecular weight field
+    def electron_number_density(field, data):
+        ret = None
+        for tmp in ion_fields:
+            i = tmp.ion_level
+            if i > 1:
+                if ret is None:
+                    ret = data[tmp.nion] * (i - 1)
+                else:
+                    ret += data[tmp.nion] * (i - 1)
+
+        return ret
+
+    def mean_molecular_weight(field, data):
+        one_amu = data.apply_units(1, "amu")
+        ntot = data["gas", "electron_number_density"]
+        for _element, element_short in element_list:
+            ntot += data["gas", f"{element_short}_number_density"]
+
+        return data["gas", "density"] / (ntot * one_amu)
+
+    ds.add_field(
+        ("gas", "electron_number_density"),
+        function=electron_number_density,
+        units="1/cm**3",
+        sampling_type="cell",
+    )
+    ds.add_field(
+        ("gas", "mean_molecular_weight"),
+        function=mean_molecular_weight,
+        units="1",
+        sampling_type="cell",
+        force_override=True,
+    )
+
+    def wrap_long(func, nion_field, axis=None):
+        def wrapped(field, data):
+            input_shape = data["gas", "temperature"].shape
+
+            T = data["gas", "temperature"].to("K").value
+            nion = data[nion_field].to("1/cm**3").value
+            ne = data["gas", "electron_number_density"].to("1/cm**3").value
+            nH = data["gas", "H_number_density"].to("1/cm**3").value
+            nHII = data["gas", "H_II_number_density"].to("1/cm**3").value
+            nHe = data["gas", "He_number_density"].to("1/cm**3").value
+            nHeII = data["gas", "He_II_number_density"].to("1/cm**3").value
+            nHeIII = data["gas", "He_III_number_density"].to("1/cm**3").value
+            nH2 = data["gas", "H2_number_density"].to("1/cm**3").value
+            z = data.ds.current_redshift
+            if isinstance(data, yt.fields.field_detector.FieldDetector):
+                return np.random.rand(*input_shape)
+
+            ret = func(T, nion, ne, nH, nHII, nHe, nHeII, nHeIII, nH2, z)
+            if isinstance(ret, tuple) and axis is None:
+                if len(ret[0]) == 0:
+                    ret = np.array([])
+                else:
+                    ret = np.sum(ret, axis=0)
+            elif isinstance(ret, tuple) and axis is not None:
+                ret = ret[axis]
+            elif axis is not None:
+                raise ValueError("axis is not None but ret is not a tuple")
+
+            return data.apply_units(ret, "erg/s/cm**3")
 
         return wrapped
 
-    def wrap_short(func, nion_field):
-        @wraps(func)
-        def wrapped(_field, data):
-            return func(
-                data["gas", "temperature"],
-                data[nion_field].to("1/cm**3").value,
-                data["gas", "electron_number_density"].to("1/cm**3").value,
-            )
+    def wrap_short(func, nion_field, axis=None):
+        def wrapped(field, data):
+            input_shape = data["gas", "temperature"].shape
+
+            T = data["gas", "temperature"].to("K").value
+            nion = data["gas", nion_field].to("1/cm**3").value
+            ne = data["gas", "electron_number_density"].to("1/cm**3").value
+            if isinstance(data, yt.fields.field_detector.FieldDetector):
+                return np.random.rand(*input_shape)
+
+            ret = func(T, nion, ne)
+            if isinstance(ret, tuple) and axis is None:
+                if len(ret[0]) == 0:
+                    ret = np.array([])
+                else:
+                    ret = np.sum(ret, axis=0)
+            elif isinstance(ret, tuple) and axis is not None:
+                ret = ret[axis]
+            elif axis is not None:
+                raise ValueError("axis is not None but ret is not a tuple")
+            return data.apply_units(ret, "erg/s/cm**3")
 
         return wrapped
+
+    all_fields = []
 
     for field_name, func in (
-        # Depend on T, nion, ne, and primordial elements (HI, HII, HeI, HeII, HeIII, H2)
-        ("O_I_63_145µm", wrap_long(O_I_fine_structure, "O_I_number_density")),
-        ("Si_II_34µm", wrap_long(Si_II_fine_structure, "Si_II_number_density")),
+        # OI fine structure lines
+        ("O_I_63µm", wrap_long(O_I_fine_structure, "O_I_number_density", 0)),
+        ("O_I_44µm", wrap_long(O_I_fine_structure, "O_I_number_density", 1)),
+        ("O_I_145µm", wrap_long(O_I_fine_structure, "O_I_number_density", 2)),
+        ("O_I_63_44_145µm", wrap_long(O_I_fine_structure, "O_I_number_density")),
+        # CI fine structure lines
+        ("C_I_609µm", wrap_long(C_I_fine_structure, "C_I_number_density", 0)),
+        ("C_I_230µm", wrap_long(C_I_fine_structure, "C_I_number_density", 1)),
+        ("C_I_370µm", wrap_long(C_I_fine_structure, "C_I_number_density", 2)),
+        ("C_I_609_230_370µm", wrap_long(C_I_fine_structure, "C_I_number_density")),
+        # CII fine structure line
         ("C_II_158µm", wrap_long(C_II_fine_structure, "C_II_number_density")),
-        ("N_II_122_205µm", wrap_long(N_II_fine_structure, "N_II_number_density")),
-        ("Ne_II_12µm", wrap_long(Ne_II_fine_structure, "Ne_II_number_density")),
-        # Following lines only depend on T, nion, and ne
-        ("Hua_12µm", wrap_short(H_I_IR_red, "HI_number_density")),
+        # NII fine structure lines
+        ("N_II_205µm", wrap_long(N_II_fine_structure, "N_II_number_density", 0)),
+        ("N_II_76µm", wrap_long(N_II_fine_structure, "N_II_number_density", 1)),
+        ("N_II_122µm", wrap_long(N_II_fine_structure, "N_II_number_density", 2)),
+        ("N_II_205_76_122µm", wrap_long(N_II_fine_structure, "N_II_number_density")),
+        # SiII fine structure line
+        ("Si_II_35µm", wrap_long(Si_II_fine_structure, "Si_II_number_density")),
+        # NeII fine structure line
+        ("Ne_II_13µm", wrap_long(Ne_II_fine_structure, "Ne_II_number_density")),
+        # SIII fine structure lines
+        ("S_III_18µm", wrap_short(S_III_fine_structure, "S_III_number_density", 0)),
+        ("S_III_33µm", wrap_short(S_III_fine_structure, "S_III_number_density", 1)),
         ("S_III_18_33µm", wrap_short(S_III_fine_structure, "S_III_number_density")),
-        ("N_III_57µm", wrap_short(N_III_fine_structure, "N_III_number_density")),
+        # SIV fine structure line
         ("S_IV_10µm", wrap_short(S_IV_fine_structure, "S_IV_number_density")),
-        ("O_III_88µm", wrap_short(O_III_fine_structure, "O_III_number_density")),
-        ("Ne_III_15µm", wrap_short(Ne_III_fine_structure, "Ne_III_number_density")),
+        # NIII fine structure line
+        ("N_III_57µm", wrap_short(N_III_fine_structure, "N_III_number_density")),
+        # OIII fine structure line
+        ("O_III_88µm", wrap_short(O_III_fine_structure, "O_III_number_density", 0)),
+        ("O_III_52µm", wrap_short(O_III_fine_structure, "O_III_number_density", 1)),
+        ("O_III_88_52µm", wrap_short(O_III_fine_structure, "O_III_number_density")),
+        # NeIII fine structure lines
+        ("Ne_III_36µm", wrap_short(Ne_III_fine_structure, "Ne_III_number_density", 0)),
+        ("Ne_III_15µm", wrap_short(Ne_III_fine_structure, "Ne_III_number_density", 1)),
+        ("Ne_III_36_15µm", wrap_short(Ne_III_fine_structure, "Ne_III_number_density")),
+        # OIV fine structure line
         ("O_IV_26µm", wrap_short(O_IV_fine_structure, "O_IV_number_density")),
+        # NeV fine structure lines
+        ("Ne_V_14µm", wrap_short(Ne_V_fine_structure, "Ne_V_number_density", 0)),
+        ("Ne_V_24µm", wrap_short(Ne_V_fine_structure, "Ne_V_number_density", 1)),
         ("Ne_V_14_24µm", wrap_short(Ne_V_fine_structure, "Ne_V_number_density")),
+        # Halpha line
+        ("Hua_12µm", wrap_short(H_I_IR_red, "H_I_number_density")),
     ):
-        yt.add_field(
+        ds.add_field(
             ("gas", field_name),
             function=func,
             units="erg/s/cm**3",
+            sampling_type="cell",
         )
+        all_fields.append(("gas", field_name))
+
+    return all_fields
