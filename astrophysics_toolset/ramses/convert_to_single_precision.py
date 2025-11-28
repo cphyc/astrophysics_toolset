@@ -92,9 +92,6 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
             convert_part(str(part_file), str(output_file), include_tracers, input_types, output_types, verbose=verbose)
     all_files.difference_update(part_files)
 
-    # Due to parallel processing, the local process hasn't seen all files, so let's do a MPI gather here
-    all_files = sorted(comm.communicators[-1].comm.allreduce(set(all_files), op=lambda a, b: a.intersection(b)))
-
     # Special treatment for the file descriptor.txt files
     hydro_file_desc = input_folder / "hydro_file_descriptor.txt"
     if hydro_file_desc.exists():
@@ -115,7 +112,7 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
                 convert_file_descriptor(part_file_desc, tgt, blacklist=[f"position_{k}" for k in "xyz"])
 
     # Hard link remaining files
-    for remaining_file in yt.parallel_objects(all_files):
+    for remaining_file in yt.parallel_objects(sorted(all_files)):
         tgt = output_folder / remaining_file.name
 
         if tgt.exists():
