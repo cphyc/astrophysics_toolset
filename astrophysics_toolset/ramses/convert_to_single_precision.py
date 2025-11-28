@@ -4,8 +4,11 @@ import shutil
 import numpy as np
 import yt
 from yt.config import ytcfg
+from yt.utilities.parallel_tools.parallel_analysis_interface import communication_system as comm
 
 from astrophysics_toolset.ramses._convert_to_single_precision import convert_grav, convert_hydro, convert_part
+
+yt.enable_parallelism()
 
 
 def convert(input_folder: Path, output_folder: Path, include_tracers: bool = False, verbose: bool = False) -> None:
@@ -24,7 +27,7 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     )
     hydro_fields, _ = hydro_handler.get_detected_fields(ds)
     nvar = len(hydro_fields)
-    for hydro_file in hydro_files:
+    for hydro_file in yt.parallel_objects(hydro_files):
         output_file = output_folder / hydro_file.name
         convert_hydro(str(hydro_file), str(output_file), verbose=verbose, nvar_manual=nvar)
         all_files.remove(hydro_file)
@@ -36,7 +39,7 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     )
     grav_fields, _ = grav_handler.get_detected_fields(ds)
     nvar = len(grav_fields)
-    for grav_file in grav_files:
+    for grav_file in yt.parallel_objects(grav_files):
         output_file = output_folder / grav_file.name
         convert_grav(str(grav_file), str(output_file), verbose=verbose, nvar_manual=nvar)
         all_files.remove(grav_file)
@@ -50,13 +53,16 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
         "f" if t == "d" and not fname.startswith("particle_position") else t
         for (_ftype, fname), t in handler.field_types.items()
     ]
-    for part_file in part_files:
+    for part_file in yt.parallel_objects(part_files):
         output_file = output_folder / part_file.name
         convert_part(str(part_file), str(output_file), include_tracers, input_types, output_types, verbose=verbose)
         all_files.remove(part_file)
 
+    # Due to parallel processing, the local process hasn't seen all files, so let's do a MPI gather here
+    all_files = sorted(comm.communicators[-1].comm.allreduce(set(all_files), op=lambda a, b: a.intersection(b)))
+
     # Hard link remaining files
-    for remaining_file in sorted(all_files):
+    for remaining_file in yt.parallel_objects(all_files):
         tgt = output_folder / remaining_file.name
         if verbose:
             print(f" Copying file: {remaining_file} to {tgt}")
@@ -94,7 +100,7 @@ def verify(input_folder: Path, output_folder: Path):
 
     fields = [field for field in ds_old.field_list if field[0] != "all"]
 
-    for field in sorted(fields):
+    for field in yt.parallel_objects(sorted(fields)):
         try:
             np.testing.assert_allclose(ad_new[field], ad_old[field], rtol=1e-5, atol=1e-30)
             print(f"✓ Field {str(field):50s} matches between old and new datasets.")
@@ -116,9 +122,11 @@ def main(args=None):
 
     convert(args.input, args.output, args.include_tracers, args.verbose)
 
-    if args.verify:
+    if args.verify and yt.is_root():
         # Verification logic to be implemented
         verify(args.input, args.output)
+
+    return 0
 
 
 if __name__ == "__main__":
