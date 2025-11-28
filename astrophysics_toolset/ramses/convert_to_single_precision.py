@@ -22,21 +22,22 @@ def get_unique_locations(field_offsets: dict[tuple[str, str], int]) -> list[tupl
 
 
 def convert_file_descriptor(src: Path, dst: Path, blacklist: list[str]) -> None:
-    with src.open("r") as fin, dst.open("w") as fout:
-        # Copy two first lines
-        fout.write(fin.readline())
-        fout.write(fin.readline())
+    src_lines = src.read_text().splitlines()
+    out_lines = src_lines[:2]
 
-        for line in fin.readlines():
-            ivar, var_name, dtype = (_.strip() for _ in line.split(","))
-            if var_name in blacklist:
-                out_dtype = dtype
-            elif dtype == "d":
-                out_dtype = "f"
-            else:
-                out_dtype = dtype
+    for line in src_lines[2:]:
+        ivar, var_name, dtype = (_.strip() for _ in line.split(","))
 
-            fout.write(f"{ivar:3d}, {var_name}, {out_dtype}\n")
+        if var_name in blacklist:
+            out_dtype = dtype
+        elif dtype == "d":
+            out_dtype = "f"
+        else:
+            out_dtype = dtype
+
+        out_lines.append(f"{ivar:>3s}, {var_name}, {out_dtype}")
+
+    dst.write_text("\n".join(out_lines) + "\n")
 
 
 def convert(input_folder: Path, output_folder: Path, include_tracers: bool = False, verbose: bool = False) -> None:
