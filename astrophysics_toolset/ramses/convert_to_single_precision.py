@@ -60,7 +60,7 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     input_types = [handler.field_types[field] for field in part_fields]
     output_types = [
         "f"
-        if handler.field_types[field] == "d" and not field.startswith("particle_position")
+        if handler.field_types[field] == "d" and not field[1].startswith("particle_position")
         else handler.field_types[field]
         for field in part_fields
     ]
