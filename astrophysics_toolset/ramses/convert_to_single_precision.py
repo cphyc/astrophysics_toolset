@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
+import os
 from pathlib import Path
-import shutil
 import numpy as np
 import yt
 from yt.config import ytcfg
@@ -19,6 +19,24 @@ def get_unique_locations(field_offsets: dict[tuple[str, str], int]) -> list[tupl
 
     unique_locs = sorted(unique_locs, key=lambda x: x[0])
     return [field for (_offset, field) in unique_locs]
+
+
+def convert_file_descriptor(src: Path, dst: Path, blacklist: list[str]) -> None:
+    with src.open("r") as fin, dst.open("w") as fout:
+        # Copy two first lines
+        fout.write(fin.readline())
+        fout.write(fin.readline())
+
+        for line in fin.readlines():
+            ivar, var_name, dtype = (_.strip() for _ in line.split(","))
+            if var_name in blacklist:
+                out_dtype = dtype
+            elif dtype == "d":
+                out_dtype = "f"
+            else:
+                out_dtype = dtype
+
+            fout.write(f"{ivar:3d}, {var_name}, {out_dtype}\n")
 
 
 def convert(input_folder: Path, output_folder: Path, include_tracers: bool = False, verbose: bool = False) -> None:
@@ -74,7 +92,29 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
             convert_part(str(part_file), str(output_file), include_tracers, input_types, output_types, verbose=verbose)
     all_files.difference_update(part_files)
 
-    # Copy remaining files
+    # Due to parallel processing, the local process hasn't seen all files, so let's do a MPI gather here
+    all_files = sorted(comm.communicators[-1].comm.allreduce(set(all_files), op=lambda a, b: a.intersection(b)))
+
+    # Special treatment for the file descriptor.txt files
+    hydro_file_desc = input_folder / "hydro_file_descriptor.txt"
+    if hydro_file_desc.exists():
+        all_files.remove(hydro_file_desc)
+        tgt = output_folder / hydro_file_desc.name
+        if yt.is_root():
+            if verbose:
+                print(f" Converting file descriptor: {hydro_file_desc} to {tgt}")
+                convert_file_descriptor(hydro_file_desc, tgt, blacklist=[])
+
+    part_file_desc = input_folder / "part_file_descriptor.txt"
+    if part_file_desc.exists():
+        all_files.remove(part_file_desc)
+        tgt = output_folder / part_file_desc.name
+        if yt.is_root():
+            if verbose:
+                print(f" Converting file descriptor: {part_file_desc} to {tgt}")
+                convert_file_descriptor(part_file_desc, tgt, blacklist=[f"position_{k}" for k in "xyz"])
+
+    # Hard link remaining files
     for remaining_file in yt.parallel_objects(all_files):
         tgt = output_folder / remaining_file.name
 
@@ -82,7 +122,7 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
             raise RuntimeError(f"{tgt} already exists! Aborting")
         if verbose:
             print(f" Copying file: {remaining_file} to {tgt}")
-        shutil.copy2(remaining_file, tgt)
+        os.link(remaining_file, tgt)
 
 
 def verify(input_folder: Path, output_folder: Path):
