@@ -11,6 +11,18 @@ from astrophysics_toolset.ramses._convert_to_single_precision import convert_gra
 yt.enable_parallelism()
 
 
+def get_unique_locations(field_offsets: dict[tuple[str, str], int]) -> list[tuple[str, str]]:
+    unique_locs: list[tuple[int, tuple[str, str]]] = []
+    seen_offsets = set()
+    for field, offset in field_offsets.items():
+        if offset not in seen_offsets:
+            seen_offsets.add(offset)
+            unique_locs.append((offset, field))
+
+    unique_locs = sorted(unique_locs, key=lambda x: x[0])
+    return [field for (_offset, field) in unique_locs]
+
+
 def convert(input_folder: Path, output_folder: Path, include_tracers: bool = False, verbose: bool = False) -> None:
     output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -22,10 +34,8 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
 
     # Convert hydro files
     hydro_files = sorted(input_folder.glob("hydro_*.out*"))
-    hydro_handler = next(
-        handler for handler in dom.field_handlers if handler.ftype == "ramses"
-    )
-    hydro_fields, _ = hydro_handler.get_detected_fields(ds)
+    hydro_handler = next(handler for handler in dom.field_handlers if handler.ftype == "ramses")
+    hydro_fields = get_unique_locations(hydro_handler.field_offsets)
     nvar = len(hydro_fields)
     for hydro_file in yt.parallel_objects(hydro_files):
         output_file = output_folder / hydro_file.name
@@ -34,10 +44,8 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
 
     # Convert grav files
     grav_files = sorted(input_folder.glob("grav_*.out*"))
-    grav_handler = next(
-        handler for handler in dom.field_handlers if handler.ftype == "gravity"
-    )
-    grav_fields, _ = grav_handler.get_detected_fields(ds)
+    grav_handler = next(handler for handler in dom.field_handlers if handler.ftype == "gravity")
+    grav_fields = get_unique_locations(grav_handler.field_offsets)
     nvar = len(grav_fields)
     for grav_file in yt.parallel_objects(grav_files):
         output_file = output_folder / grav_file.name
@@ -47,11 +55,14 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
     # Convert part files
     part_files = sorted(input_folder.glob("part_*.out*"))
     handler = next(handler for handler in ds.index.domains[0].particle_handlers if handler.ptype == "io")
+    part_fields = get_unique_locations(handler.field_offsets)
 
-    input_types = list(handler.field_types.values())
+    input_types = [handler.field_types[field] for field in part_fields]
     output_types = [
-        "f" if t == "d" and not fname.startswith("particle_position") else t
-        for (_ftype, fname), t in handler.field_types.items()
+        "f"
+        if handler.field_types[field] == "d" and not field.startswith("particle_position")
+        else handler.field_types[field]
+        for field in part_fields
     ]
     for part_file in yt.parallel_objects(part_files):
         output_file = output_folder / part_file.name
@@ -106,7 +117,6 @@ def verify(input_folder: Path, output_folder: Path):
             print(f"✓ Field {str(field):50s} matches between old and new datasets.")
         except AssertionError as e:
             print(f"✗ Field {str(field):50s} does not match: {e}")
-
 
 
 def main(args=None):
