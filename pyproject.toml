@@ -3,6 +3,7 @@ requires = [
     "numpy",
     "scikit-build-core>=0.8.0",
     "Cython>=3.0",
+    "meson",
 ]
 build-backend = "scikit_build_core.build"
 
