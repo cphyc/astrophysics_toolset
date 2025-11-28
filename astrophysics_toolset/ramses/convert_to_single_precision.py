@@ -10,7 +10,6 @@ from astrophysics_toolset.ramses._convert_to_single_precision import convert_gra
 
 yt.enable_parallelism()
 
-
 def get_unique_locations(field_offsets: dict[tuple[str, str], int]) -> list[tuple[str, str]]:
     unique_locs: list[tuple[int, tuple[str, str]]] = []
     seen_offsets = set()
@@ -34,8 +33,10 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
 
     # Convert hydro files
     hydro_files = sorted(input_folder.glob("hydro_*.out*"))
-    hydro_handler = next(handler for handler in dom.field_handlers if handler.ftype == "ramses")
-    hydro_fields = get_unique_locations(hydro_handler.field_offsets)
+    hydro_handler = next(
+        handler for handler in dom.field_handlers if handler.ftype == "ramses"
+    )
+    hydro_fields, _ = hydro_handler.get_detected_fields(ds)
     nvar = len(hydro_fields)
     for hydro_file in yt.parallel_objects(hydro_files):
         output_file = output_folder / hydro_file.name
@@ -44,8 +45,10 @@ def convert(input_folder: Path, output_folder: Path, include_tracers: bool = Fal
 
     # Convert grav files
     grav_files = sorted(input_folder.glob("grav_*.out*"))
-    grav_handler = next(handler for handler in dom.field_handlers if handler.ftype == "gravity")
-    grav_fields = get_unique_locations(grav_handler.field_offsets)
+    grav_handler = next(
+        handler for handler in dom.field_handlers if handler.ftype == "gravity"
+    )
+    grav_fields, _ = grav_handler.get_detected_fields(ds)
     nvar = len(grav_fields)
     for grav_file in yt.parallel_objects(grav_files):
         output_file = output_folder / grav_file.name
