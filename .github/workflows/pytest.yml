@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v5
@@ -26,6 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get -qqy update
+        sudo apt-get install meson ninja-build gfortran
         python -m pip install --upgrade pip wheel
         python -m pip install -e .[test] -v
     - name: Test with pytest
