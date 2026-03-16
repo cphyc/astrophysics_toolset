@@ -7,13 +7,17 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description="Convert yt-supported dataset to Gadget HDF5 format")
-    parser.add_argument("input", help="Input dataset")
-    parser.add_argument("output", help="Output dataset")
+    parser.add_argument("input", help="Input dataset (any supported by yt)")
+    parser.add_argument("output", help="Output gadget dataset")
     parser.add_argument(
         "--mapping",
         type=str,
         nargs="+",
         default=["gas:PartType0", "DM_hires:PartType1", "star:PartType4"],
+        help=(
+            "Mapping from yt fields to Gadget particle types. "
+            "Format is 'yt_field:PartTypeX'. Default is %(default)s."
+        )
     )
 
     args = parser.parse_args()
