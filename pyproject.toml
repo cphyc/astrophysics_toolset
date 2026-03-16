@@ -69,6 +69,7 @@ read_logs = "astrophysics_toolset.ramses.read_logs:main"
 extract_particles = "astrophysics_toolset.yt.extract_particles:main"
 convert_to_single_precision = "astrophysics_toolset.ramses.convert_to_single_precision:main"
 SFH = "astrophysics_toolset.ramses.star_formation_history:main"
+yt2gadget = "astrophysics_toolset.yt.gadget:main"
 
 [tool.setuptools]
 include-package-data = true
