@@ -54,7 +54,7 @@ all = [
     "pyorick>=1.4",
 ]
 test = [
-    "pytest>=6.2.5,<8.5.0",
+    "pytest>=6.2.5,<9.2.0",
     # Ping to 4.3.1 to avoid changeset in https://github.com/yt-project/yt/pull/4878
     # This is required for testing hilbert.pyx functions
     "yt>=4.3.1,<4.5.0",
